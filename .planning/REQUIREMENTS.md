@@ -20,7 +20,7 @@
 
 - [x] **BUG-01**: `new Promise(async (res, rej) => ...)` anti-pattern replaced with direct async functions using `try/finally` in `query.ts` and `database.ts`
 - [x] **BUG-02**: Cursor is guaranteed to close even when a `chunk`/`step` callback throws; transaction `done` flag replaced with a private class field (`#done`) to eliminate the race condition across `await` boundaries
-- [ ] **BUG-03**: Calling `commit()` or `rollback()` a second time silently returns (no-op) instead of throwing
+- [x] **BUG-03**: Calling `commit()` or `rollback()` a second time silently returns (no-op) instead of throwing
 - [x] **BUG-04**: Typo `'delate'` corrected to `'delete'` in the debug command array (`query.ts:40`)
 
 ### Refactoring
@@ -83,7 +83,7 @@
 | TEST-03 | Phase 1 | Complete |
 | BUG-01 | Phase 2 | Complete |
 | BUG-02 | Phase 2 | Complete |
-| BUG-03 | Phase 2 | Pending |
+| BUG-03 | Phase 2 | Complete |
 | BUG-04 | Phase 2 | Complete |
 | REFAC-01 | Phase 3 | Pending |
 | REFAC-02 | Phase 3 | Pending |

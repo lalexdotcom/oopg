@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-23T14:37:30.151Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-23T14:43:28.852Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 01-test-infrastructure P01 | 3 | 2 tasks | 5 files |
 | Phase 01-test-infrastructure P02 | 2 | 1 tasks | 1 files |
 | Phase 02-correctness-fixes P01 | 2 | 1 tasks | 1 files |
+| Phase 02-correctness-fixes P02 | 12 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 01-01]: Schema names use oopg_test_<uuid> prefix with hyphens replaced by underscores for valid PostgreSQL identifiers (pg_temp_ is reserved by PostgreSQL for internal temporary schemas)
 - [Phase 01-02]: chunk() size specified as options.size not as positional arg — plan snippet showed chunk(client, sql, 2, callback) but actual signature is chunk(client, sql, callback, { size: 2 })
 - [Phase 02-01]: Use async implementation overload for chunk() - cleaner than IIFE wrapper, try/finally guarantees cursor close
+- [Phase 02-02]: commit() and rollback() return silently on second call rather than throw — idempotent by design per BUG-03
+- [Phase 02-02]: Memoize block removed entirely from database.ts — undocumented feature with async anti-pattern, no API surface loss
 
 ### Pending Todos
 
@@ -83,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T14:37:30.149Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-23T14:43:28.850Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
