@@ -60,43 +60,37 @@ describe('transactions', () => {
     });
   });
 
-  test('double commit throws', async () => {
+  test('double commit is silent (no-op)', async () => {
     await withSchema(db, async (schema) => {
       await createTestTable(db, schema);
 
-      let caughtError: Error | undefined;
-
-      await db.transaction(async (_tx, { commit }) => {
+      await db.transaction(async (tx, { commit }) => {
+        const client = await tx.pool.connect();
+        await client.query(`INSERT INTO "${schema}"."items" (name, value) VALUES ('a', 1)`);
         await commit();
-        try {
-          await commit();
-        } catch (e) {
-          caughtError = e as Error;
-        }
-      }, { autoCommit: false }).catch(() => {});
+        await commit(); // second call must not throw
+      }, { autoCommit: false });
 
-      expect(caughtError).toBeDefined();
-      expect(caughtError?.message).toBe('Transaction already commited or rolled back');
+      // First commit persisted the row
+      const result = await db.pool.query(`SELECT * FROM "${schema}"."items"`);
+      expect(result.rows).toHaveLength(1);
     });
   });
 
-  test('double rollback throws', async () => {
+  test('double rollback is silent (no-op)', async () => {
     await withSchema(db, async (schema) => {
       await createTestTable(db, schema);
 
-      let caughtError: Error | undefined;
-
-      await db.transaction(async (_tx, { rollback }) => {
+      await db.transaction(async (tx, { rollback }) => {
+        const client = await tx.pool.connect();
+        await client.query(`INSERT INTO "${schema}"."items" (name, value) VALUES ('b', 2)`);
         await rollback();
-        try {
-          await rollback();
-        } catch (e) {
-          caughtError = e as Error;
-        }
-      }, { autoCommit: false }).catch(() => {});
+        await rollback(); // second call must not throw
+      }, { autoCommit: false });
 
-      expect(caughtError).toBeDefined();
-      expect(caughtError?.message).toBe('Transaction already commited or rolled back');
+      // Rollback discarded the row
+      const result = await db.pool.query(`SELECT * FROM "${schema}"."items"`);
+      expect(result.rows).toHaveLength(0);
     });
   });
 
@@ -242,6 +236,28 @@ describe('query modes', () => {
         });
         expect(stepped).toHaveLength(5);
         expect((stepped[0] as { name: string }).name).toBe('alpha');
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  test('chunk closes cursor when callback throws', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(`INSERT INTO "${schema}"."items" (name, value) VALUES ('x', 1)`);
+
+      const client = await db.pool.connect();
+      try {
+        await expect(
+          chunk(client, `SELECT * FROM "${schema}"."items"`, async () => {
+            throw new Error('callback error');
+          }),
+        ).rejects.toThrow('callback error');
+
+        // If cursor leaked, subsequent queries on the same client would hang or error.
+        const rows = await select(client, 'SELECT 1 AS alive');
+        expect((rows[0] as { alive: number }).alive).toBe(1);
       } finally {
         client.release();
       }
