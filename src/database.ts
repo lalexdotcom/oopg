@@ -88,7 +88,13 @@ type ExecuteResult<R extends Row> = {
   fields: FieldDef[];
 };
 
+/** Record of named database elements (tables, views, functions) that make up a schema. */
 export type Schema = Record<string, DatabaseElement>;
+
+/**
+ * Callback that receives schema-building utilities (`table`, `view`, `func`) and
+ * returns a schema definition object.
+ */
 export type SchemaBuilder<DB extends Database, S extends Schema> = (utils: {
   table: DB['table'];
   view: DB['view'];
@@ -130,6 +136,22 @@ type DatabaseSelectOptions = SelectOptions;
 //     return o.hasOwnProperty(SCHEMA_PROPERTY);
 // };
 
+/**
+ * Central database access object. Wraps a `pg.Pool` and provides typed query
+ * methods, transaction management, schema-aware SQL templates, and LISTEN/NOTIFY support.
+ *
+ * @example
+ * ```ts
+ * import { Database } from 'oopg';
+ *
+ * const db = new Database('postgresql://user:pass@localhost/mydb');
+ *
+ * const rows = await db.select<{ id: string; name: string }>(
+ *   'SELECT id, name FROM users WHERE active = $1',
+ *   [true],
+ * );
+ * ```
+ */
 export class Database implements EventEmitter {
   #config: Readonly<PoolConfig>;
   #typeOverrides?: Partial<Record<BuiltinsTypes, (val: string) => unknown>>;
@@ -145,6 +167,27 @@ export class Database implements EventEmitter {
     return typeof o === 'object' && !!o && Object.hasOwn(o, SCHEMA_PROPERTY);
   }
 
+  /**
+   * Creates a new `Database` instance and initializes a connection pool.
+   *
+   * @param config - PostgreSQL connection string (e.g. `'postgresql://user:pass@host/db'`)
+   *   or a `pg.ClientConfig` object
+   * @param poolConfig - optional pool configuration. Use the `types` key to override
+   *   per-pool type parsers without affecting other pools
+   *
+   * @example
+   * ```ts
+   * import { Database } from 'oopg';
+   *
+   * // Basic connection string
+   * const db = new Database('postgresql://localhost/mydb');
+   *
+   * // Override type parsers — return BigInt for INT8 columns
+   * const db2 = new Database(process.env.DATABASE_URL!, {
+   *   types: { INT8: (val) => BigInt(val) },
+   * });
+   * ```
+   */
   constructor(
     config: string | ClientConfig,
     poolConfig?: Omit<PoolConfig & ClientConfig, 'types'> & {
@@ -226,39 +269,75 @@ export class Database implements EventEmitter {
       }
     });
   }
+  /** Emits a named event through the internal EventEmitter. */
   emit(...params: Parameters<EventEmitter['emit']>) {
     return this.eventEmitter.emit(...params);
   }
+
+  /**
+   * Subscribes to a PostgreSQL LISTEN/NOTIFY channel. The database automatically
+   * issues `LISTEN <channel>` on a dedicated connection the first time a listener
+   * is registered.
+   *
+   * @param params - event name (channel) and listener function
+   * @returns `this` for chaining
+   *
+   * @example
+   * ```ts
+   * import { Database } from 'oopg';
+   *
+   * const db = new Database(process.env.DATABASE_URL!);
+   *
+   * db.on('user_created', (payload) => {
+   *   console.log('new user payload:', payload);
+   * });
+   * ```
+   */
   on(...params: Parameters<EventEmitter['on']>) {
     this.eventEmitter.on(...params);
     return this;
   }
+
+  /** Adds a listener via `addListener` — alias for `on`. */
   addListener(...params: Parameters<EventEmitter['addListener']>) {
     this.eventEmitter.addListener(...params);
     return this;
   }
+
+  /** Subscribes a one-time listener for a LISTEN/NOTIFY channel. Unsubscribes after first invocation. */
   once(...params: Parameters<EventEmitter['once']>) {
     this.eventEmitter.once(...params);
     return this;
   }
+
+  /** Removes a previously registered listener from a channel. Issues `UNLISTEN` when no listeners remain. */
   removeListener(...params: Parameters<EventEmitter['removeListener']>) {
     this.eventEmitter.removeListener(...params);
     return this;
   }
+
+  /** Removes a previously registered listener from a channel — alias for `removeListener`. */
   off(...params: Parameters<EventEmitter['off']>) {
     this.eventEmitter.off(...params);
     return this;
   }
 
+  /** Returns the list of currently registered event names. */
   eventNames() {
     return this.eventEmitter.eventNames();
   }
+
+  /** Returns all listeners registered for the given event name. */
   listeners(...params: Parameters<EventEmitter['listeners']>) {
     return this.eventEmitter.listeners(...params);
   }
+
+  /** Returns the number of listeners registered for the given event name. */
   listenerCount(...params: Parameters<EventEmitter['listenerCount']>) {
     return this.eventEmitter.listenerCount(...params);
   }
+
+  /** Removes all listeners for a given event, or all events if no event is specified. */
   removeAllListeners(
     ...params: Parameters<EventEmitter['removeAllListeners']>
   ) {
@@ -292,6 +371,32 @@ export class Database implements EventEmitter {
     };
   }
 
+  /**
+   * Executes the callback inside a `BEGIN`/`COMMIT` transaction block.
+   * The callback receives a transaction-scoped client and explicit `commit`/`rollback`
+   * functions. If the callback returns without calling either, the transaction is
+   * rolled back automatically (unless `autoCommit: true` is passed).
+   *
+   * @param callback - async function that performs queries and must call `commit()` or `rollback()`
+   * @param options - optional `autoCommit` flag and debug options
+   * @returns the value returned by the callback
+   *
+   * @example
+   * ```ts
+   * import { Database } from 'oopg';
+   *
+   * const db = new Database(process.env.DATABASE_URL!);
+   *
+   * const userId = await db.transaction(async (tx, { commit, rollback }) => {
+   *   const [user] = await tx.select<{ id: string }>(
+   *     'INSERT INTO users (name) VALUES ($1) RETURNING id', ['Alice'],
+   *   );
+   *   if (!user) { await rollback(); return null; }
+   *   await commit();
+   *   return user.id;
+   * });
+   * ```
+   */
   async transaction<T>(
     callback: (
       transaction: this,
@@ -371,6 +476,23 @@ export class Database implements EventEmitter {
     return { sql, values, options };
   }
 
+  /**
+   * Executes a SELECT query and returns all matching rows.
+   * When `options.stream` is `true`, returns a readable stream instead.
+   *
+   * @param sql - SQL string or query template function
+   * @param values - optional positional parameter values
+   * @param options - optional query options including `stream` flag
+   * @returns array of typed row objects, or a `Readable` stream when streaming
+   *
+   * @example
+   * ```ts
+   * const users = await db.select<{ id: string; name: string }>(
+   *   'SELECT id, name FROM users WHERE active = $1',
+   *   [true],
+   * );
+   * ```
+   */
   select<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     options: Omit<DatabaseSelectOptions, 'stream'> & { stream: true },
@@ -421,6 +543,23 @@ export class Database implements EventEmitter {
     return result;
   }
 
+  /**
+   * Executes a non-SELECT SQL statement (INSERT, UPDATE, DELETE, DDL).
+   *
+   * @param sql - SQL string or query template function
+   * @param values - optional positional parameter values
+   * @param options - optional debug options
+   * @returns execution result including `command`, `count`, `rows`, and `fields`
+   *
+   * @example
+   * ```ts
+   * const result = await db.execute(
+   *   'UPDATE users SET active = $1 WHERE last_login < $2',
+   *   [false, cutoffDate],
+   * );
+   * console.log(`deactivated ${result.count} users`);
+   * ```
+   */
   execute<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     options?: OperationOptions,
@@ -455,6 +594,25 @@ export class Database implements EventEmitter {
     return result;
   }
 
+  /**
+   * Opens a server-side cursor for the query and returns a `pg-cursor` instance.
+   * The caller is responsible for reading rows and closing the cursor.
+   *
+   * @param sql - SQL string or query template function
+   * @param values - optional positional parameter values
+   * @param options - optional cursor options
+   * @returns a `pg-cursor` instance
+   *
+   * @example
+   * ```ts
+   * const curs = await db.cursor('SELECT id FROM large_table');
+   * let batch: { id: string }[];
+   * while ((batch = await curs.read(100)).length) {
+   *   for (const row of batch) process(row);
+   * }
+   * await curs.close();
+   * ```
+   */
   cursor<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     options?: CursorOptions,
@@ -491,6 +649,26 @@ export class Database implements EventEmitter {
     return curs;
   }
 
+  /**
+   * Processes query results in fixed-size batches using a server-side cursor.
+   * The callback is called for each batch until all rows are consumed.
+   *
+   * @param sql - SQL string or query template function
+   * @param callback - async function called with each batch of rows
+   * @param options - optional chunk size and debug options (default chunk size: 1000)
+   * @returns promise that resolves when all batches have been processed
+   *
+   * @example
+   * ```ts
+   * await db.chunks<{ id: string; email: string }>(
+   *   'SELECT id, email FROM users',
+   *   async (rows) => {
+   *     await sendEmails(rows);
+   *   },
+   *   { size: 500 },
+   * );
+   * ```
+   */
   chunks<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     callback: ChunkCallback<R>,
@@ -535,6 +713,24 @@ export class Database implements EventEmitter {
     client.release();
   }
 
+  /**
+   * Processes query results one row at a time using a server-side cursor.
+   *
+   * @param sql - SQL string or query template function
+   * @param callback - async function called with each individual row
+   * @param options - optional cursor and debug options
+   * @returns promise that resolves when all rows have been processed
+   *
+   * @example
+   * ```ts
+   * await db.step<{ id: string; name: string }>(
+   *   'SELECT id, name FROM users',
+   *   async (row) => {
+   *     await processUser(row);
+   *   },
+   * );
+   * ```
+   */
   step<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     callback: StepCallback<R>,
@@ -575,6 +771,23 @@ export class Database implements EventEmitter {
     client.release();
   }
 
+  /**
+   * Executes a SELECT query and returns the first matching row, or `undefined` if none.
+   *
+   * @param sql - SQL string or query template function
+   * @param values - optional positional parameter values
+   * @param options - optional cursor and debug options
+   * @returns the first row, or `undefined`
+   *
+   * @example
+   * ```ts
+   * const user = await db.first<{ id: string; name: string }>(
+   *   'SELECT id, name FROM users WHERE email = $1',
+   *   ['alice@example.com'],
+   * );
+   * if (user) console.log('found:', user.name);
+   * ```
+   */
   first<R extends Row = Row>(
     queryTemplate: SQLQuery<this>,
     options?: CursorOptions,
@@ -641,6 +854,20 @@ export class Database implements EventEmitter {
   // 	return { enqueue, close: () => close().then(() => client.release()) };
   // }
 
+  /**
+   * Acquires a client from the pool, passes it to the callback, and releases it when done.
+   *
+   * @param callback - function that receives the raw `pg.ClientBase` and an explicit `release()` function
+   * @param autoRelease - when `true` (default), the client is released automatically after the callback resolves
+   * @returns the value returned by the callback
+   *
+   * @example
+   * ```ts
+   * const result = await db.connect(async (client) => {
+   *   return client.query('SELECT pg_backend_pid()');
+   * });
+   * ```
+   */
   async connect<T>(
     callback: (client: ClientBase, release: () => void) => T,
     autoRelease = true,
@@ -670,6 +897,22 @@ export class Database implements EventEmitter {
     }
   }
 
+  /**
+   * Builds a typed schema by defining tables, views, and functions scoped to a
+   * PostgreSQL schema name.
+   *
+   * @param schemaName - the PostgreSQL schema name (e.g. `'app'`, `'public'`)
+   * @param sch - builder callback that receives `{ table, view, func }` utilities
+   * @returns the schema definition object with typed entity references
+   *
+   * @example
+   * ```ts
+   * const schema = db.schema('app', ({ table }) => ({
+   *   users: table<{ name: string }>('users'),
+   * }));
+   * const rows = await schema.users.find({});
+   * ```
+   */
   schema<B extends SchemaBuilder<this, Schema>>(schemaName: string, sch: B) {
     const builtSchema = sch({
       table: (tableDesc: EntityDescription) => {
@@ -704,6 +947,18 @@ export class Database implements EventEmitter {
     return builtSchema as ReturnType<B>;
   }
 
+  /**
+   * Defines a typed table entity in the database schema.
+   *
+   * @param name - table name or `{ name, schema }` descriptor
+   * @returns a `Table` entity with typed `find`, `insert`, `update`, `delete`, and `create` methods
+   *
+   * @example
+   * ```ts
+   * const users = db.table<{ name: string; email: string }>('users');
+   * const all = await users.find({});
+   * ```
+   */
   table<R extends Row = Row, AUTO extends keyof R = never>(
     name: EntityDescription,
   ) {
@@ -717,6 +972,19 @@ export class Database implements EventEmitter {
     return new TableImpl(this, desc) as Table<EntityRow<R, AUTO>>;
   }
 
+  /**
+   * Defines a typed view entity. Pass `materialized: true` for materialized views.
+   *
+   * @param name - view name or `{ name, schema }` descriptor
+   * @param materialized - when `true`, returns a `MaterializedView` that supports `refresh()`
+   * @returns a `View` or `MaterializedView` entity
+   *
+   * @example
+   * ```ts
+   * const activeUsers = db.view<{ id: string; name: string }>('active_users');
+   * const rows = await activeUsers.find({});
+   * ```
+   */
   view<R extends Row = Row, AUTO extends keyof R = never>(
     name: EntityDescription,
     materialized: true,
@@ -744,6 +1012,19 @@ export class Database implements EventEmitter {
       : (new ViewImpl(this, desc) as View<this, EntityRow<R, AUTO>>);
   }
 
+  /**
+   * Defines a typed function entity for a PostgreSQL function.
+   *
+   * @param name - function name or `{ name, schema }` descriptor
+   * @param args - tuple of `PGType` values describing the function's parameter types
+   * @returns a `Func` entity with a `create()` method for DDL management
+   *
+   * @example
+   * ```ts
+   * const myFunc = db.func('compute_score', ['int', 'int']);
+   * await myFunc.create(['a', 'b'], 'SELECT $1 + $2');
+   * ```
+   */
   // 1 argument
   func<ARGS extends [PGType | [PGType]]>(
     name: EntityDescription,
@@ -870,6 +1151,24 @@ export class Database implements EventEmitter {
   }
 }
 
+/**
+ * Transaction-scoped database client. Extends `Database` to execute all queries
+ * against a single connection within a transaction block.
+ *
+ * Users receive a `TransactionClient` as the first argument of the `transaction()`
+ * callback — it should not be constructed directly.
+ *
+ * @example
+ * ```ts
+ * import { Database } from 'oopg';
+ *
+ * // The tx argument inside transaction() is a TransactionClient
+ * await db.transaction(async (tx, { commit }) => {
+ *   await tx.execute('INSERT INTO events (name) VALUES ($1)', ['signup']);
+ *   await commit();
+ * });
+ * ```
+ */
 // TransactionClient wraps an already-acquired PoolClient and routes all query
 // operations through that client instead of the parent pool. It is intentionally
 // NOT exported from index.ts (internal implementation detail per D-04).
@@ -932,6 +1231,10 @@ export class TransactionClient extends Database {
   }
 }
 
+/**
+ * Maps row types for a database entity, separating the output shape (SELECT)
+ * from the input shape (INSERT), where auto-generated columns are optional on insert.
+ */
 export type EntityRow<ROW extends Row, AUTO extends keyof ROW = never> = {
   output: RowWithId<ROW>;
   input: { id?: RowWithId['id'] } & {
@@ -944,28 +1247,48 @@ export type EntityRow<ROW extends Row, AUTO extends keyof ROW = never> = {
 type FindOptions<T> = {} & OperationOptions;
 type FindOneOptions<T> = FindOptions<T>;
 
+/** Base interface for all schema elements (tables, views, functions). */
 export interface DatabaseElement {
   readonly database: Database;
   readonly schema: string;
   readonly name: string;
 }
 
+/**
+ * Type guard that returns `true` when `element` is a `Table` entity.
+ *
+ * @param element - any value to test
+ * @returns `true` if element is a `Table`
+ */
 export const isTable = (element: unknown): element is Table<EntityRow<Row>> => {
   return element instanceof TableImpl;
 };
 
+/**
+ * Type guard that returns `true` when `element` is a `View` entity.
+ *
+ * @param element - any value to test
+ * @returns `true` if element is a `View`
+ */
 export const isView = (
   element: unknown,
 ): element is View<Database, EntityRow<Row>> => {
   return element instanceof ViewImpl;
 };
 
+/**
+ * Type guard that returns `true` when `element` is a `Func` entity.
+ *
+ * @param element - any value to test
+ * @returns `true` if element is a `Func`
+ */
 export const isFunc = (
   element: unknown,
 ): element is Func<Database, (PGType | [PGType])[]> => {
   return element instanceof FuncImpl;
 };
 
+/** Interface for schema elements with typed row definitions, providing `find` and `one` query methods. */
 export interface DatabaseEntity<EROW extends EntityRow<Row>>
   extends DatabaseElement {
   find(
@@ -1138,6 +1461,17 @@ type AlterViewMethods<EROW extends EntityRow<RowWithId>> =
     // addForeignKeys: (column: keyof EROW['output'], references: { name: string; schema?: string }) => Promise<void>;
   };
 
+/**
+ * A typed table entity returned by `db.table()`. Provides CRUD methods (`find`, `insert`,
+ * `update`, `delete`, `create`, `truncate`, `drop`) and bulk operation methods.
+ *
+ * @example
+ * ```ts
+ * const users = db.table<{ name: string; email: string }>('users');
+ * const user = await users.insert({ name: 'Alice', email: 'alice@example.com' });
+ * const found = await users.find({ email: 'alice@example.com' });
+ * ```
+ */
 export interface Table<EROW extends EntityRow<RowWithId> = EntityRow<RowWithId>>
   extends DatabaseEntity<EROW> {
   create(
@@ -1186,6 +1520,7 @@ export interface Table<EROW extends EntityRow<RowWithId> = EntityRow<RowWithId>>
   alter(): AlterTableMethods<EROW>;
 }
 
+/** A typed view entity returned by `db.view()`. Provides `find`, `one`, `create`, and `drop` methods. */
 export interface View<DB extends Database, EROW extends EntityRow<Row>>
   extends DatabaseEntity<EROW> {
   readonly materialized: boolean;
@@ -1206,6 +1541,7 @@ export interface View<DB extends Database, EROW extends EntityRow<Row>>
   alter(): AlterViewMethods<EROW>;
 }
 
+/** A typed materialized view entity returned by `db.view(name, true)`. Extends `View` with a `refresh()` method. */
 export interface MaterializedView<
   DB extends Database,
   EROW extends EntityRow<Row>,
@@ -1213,6 +1549,7 @@ export interface MaterializedView<
   refresh(options?: OperationOptions): Promise<void>;
 }
 
+/** A typed function entity returned by `db.func()`. Provides a `create()` method for DDL management. */
 export interface Func<DB extends Database, ARGS extends (PGType | [PGType])[]>
   extends DatabaseElement {
   name: string;
@@ -1621,6 +1958,17 @@ class MaterializedViewImpl<
 }
 
 // export type TableRow<T extends Table<any>> = T extends Table<infer ER> ? ER['output'] : never;
+/**
+ * Extracts the input (INSERT) row type from a `Table` or `View` entity.
+ *
+ * @example
+ * ```ts
+ * import type { TableInput } from 'oopg';
+ *
+ * const users = db.table<{ name: string }>('users');
+ * type NewUser = TableInput<typeof users>; // { id?: string; name: string }
+ * ```
+ */
 // biome-ignore lint/suspicious/noExplicitAny: <explanation>
 export type TableInput<T extends DatabaseEntity<any>> =
   T extends Table<infer ER>
@@ -1629,6 +1977,17 @@ export type TableInput<T extends DatabaseEntity<any>> =
       ? ER['input']
       : never;
 
+/**
+ * Extracts the output (SELECT) row type from a `Table` or `View` entity.
+ *
+ * @example
+ * ```ts
+ * import type { TableRow } from 'oopg';
+ *
+ * const users = db.table<{ name: string }>('users');
+ * type UserRow = TableRow<typeof users>; // { id: string; name: string }
+ * ```
+ */
 // biome-ignore lint/suspicious/noExplicitAny: <explanation>
 export type TableRow<T extends DatabaseEntity<any>> =
   T extends Table<infer ER>
