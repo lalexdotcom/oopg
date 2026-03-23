@@ -24,21 +24,41 @@ const LL = L.scope('sql');
 // biome-ignore lint/suspicious/noExplicitAny: <explanation>
 type AllKeys<T> = T extends any ? keyof T : never;
 
+/**
+ * Tagged template function returned by `createSQLContext`. Accepts a template literal
+ * with interpolated values and returns `{ sql, values }` for use in parameterized queries.
+ * The result is also callable as `(alias) => SQLQuery` to wrap it as a named subquery.
+ */
 export type SQLTemplate = (
   strings: TemplateStringsArray,
   ...params: unknown[]
 ) => { sql: string; values: unknown[]; (alias: string): void };
 
+/**
+ * Represents a Common Table Expression (CTE) definition. Provides `.alias()` to set
+ * the CTE name, `.use()` to produce the `WITH` clause entry, and typed column accessors
+ * for referencing the CTE in subsequent query fragments.
+ */
 export type SQLCTEDefinition<T = Record<string, unknown>> = {
   alias(name: string): SQLCTEDefinition<T>;
   use(materialized?: boolean): SQLQuery;
 } & Record<keyof T, void>;
 
+/**
+ * Tagged template function that creates a CTE definition from a SQL fragment.
+ * Returns an `SQLCTEDefinition` that can be aliased and consumed in a `WITH` clause.
+ */
 export type SQLCTE = <T = Record<string, unknown>>(
   strings: TemplateStringsArray,
   ...params: unknown[]
 ) => SQLCTEDefinition<T>;
 
+/**
+ * Maps a `Database` subclass's schema entities (tables, views, functions, sub-schemas)
+ * to their SQL-template counterparts. This is the type of `tables` inside `db.sql`.
+ * When `STRICT` is `true`, only declared schema keys are accessible; when `false`,
+ * unknown string keys fall back to untyped table references.
+ */
 type SQLTables<DB extends Database, STRICT extends boolean = true> = {
   // Table/View Properties
   [TK in keyof DB as DB[TK] extends DatabaseElement | Schema
@@ -72,6 +92,11 @@ type SQLTables<DB extends Database, STRICT extends boolean = true> = {
   ? { [key: string]: SQLTable<Record<string, unknown>, false> }
   : Record<string, never>);
 
+/**
+ * SQL template representation of a table. Extends `SQLSelect` with write-side helpers:
+ * `$insert` produces an INSERT target with an optional column list, and `$update`
+ * produces a SET clause from a key-value object.
+ */
 type SQLTable<T extends Row, STRICT extends boolean> = {
   $insert: SQLFormat<
     (...args: AllKeys<T>[]) => SQLFormat<void, TableFormatOptions>,
@@ -80,6 +105,11 @@ type SQLTable<T extends Row, STRICT extends boolean> = {
   $update: (sets: Partial<Record<AllKeys<T>, unknown>>) => void;
 } & SQLSelect<T, STRICT>;
 
+/**
+ * SQL template representation of a selectable entity (table or view). Provides `$all`
+ * for `table.*`, `$select` for a named column list with optional aliases, `$columns`
+ * for a bare column list (no table prefix), and per-column accessors returning `SQLColumn`.
+ */
 type SQLSelect<T extends Row, STRICT extends boolean> = SQLAlias<
   SQLFormat<
     {
@@ -105,10 +135,18 @@ type SQLSelect<T extends Row, STRICT extends boolean> = SQLAlias<
   >
 >;
 
+/**
+ * SQL template representation of a stored function. Callable with typed arguments;
+ * returns an aliasable SQL fragment representing the function call expression.
+ */
 type SQLFunction<ARGS extends (PGType | [PGType])[]> = (
   ...args: SQLFunctionParams<ARGS>
 ) => SQLAlias<SQLFormat<void, TableFormatOptions>>;
 
+/**
+ * Maps a function's `PGType` argument definitions to their JavaScript equivalents.
+ * Variadic arguments (wrapped in a tuple `[PGType]`) become rest arrays of SQL params.
+ */
 type SQLFunctionParams<ARGS extends (PGType | [PGType])[]> = {
   [K in keyof ARGS]: ARGS[K] extends PGType
     ? JSType<ARGS[K]> | SQLParam<JSType<ARGS[K]>>
@@ -119,6 +157,10 @@ type SQLFunctionParams<ARGS extends (PGType | [PGType])[]> = {
       : never;
 };
 
+/**
+ * Union of JavaScript types accepted as interpolated parameters inside SQL template literals.
+ * Covers all primitives, arrays, dates, and nested `SQLQuery` subqueries.
+ */
 type SQLParam<_T = unknown> =
   | string
   | number
@@ -134,6 +176,12 @@ type ColumnFormatOptions = TableFormatOptions & { table?: boolean };
 // type SQLColumn<T> = SQLAlias<SQLFormat<(alias?: string) => SQLFormat<void, ColumnFormatOptions>, ColumnFormatOptions>> &
 //     (T extends object ? { [key in keyof T]: SQLAlias<{ $cast: (type: PGType) => void }> } : {});
 
+/**
+ * SQL template representation of a single column. Supports aliasing via `$format`,
+ * PostgreSQL type casting via `$cast`, and JSON field extraction via sub-property
+ * access (e.g., `col.field` produces `col->>'field'`). When `T` is an object type,
+ * each key is also exposed as a typed JSON field accessor.
+ */
 type SQLColumn<T> = (T extends object
   ? {
       [K in AllKeys<T>]: SQLAlias<
@@ -151,7 +199,16 @@ type SQLColumn<T> = (T extends object
     : unknown) &
   SQLAlias<SQLCast<SQLFormat<void, ColumnFormatOptions>>>;
 
+/**
+ * Makes a value both directly usable as a SQL fragment and callable with an optional
+ * alias: `value` produces the raw SQL; `value('alias')` produces `... AS "alias"`.
+ */
 type SQLAlias<T = void> = T & ((alias?: string) => T);
+
+/**
+ * Adds a `$format(options)` method to any SQL fragment, allowing the caller to control
+ * schema inclusion, identifier quoting, and table-prefix behavior at call site.
+ */
 type SQLFormat<
   T = void,
   O extends Record<string, unknown> = Record<string, never>,
@@ -159,6 +216,11 @@ type SQLFormat<
 > = {
   $format: (options?: O) => R;
 } & T;
+
+/**
+ * Adds a `$cast(type)` method to any SQL fragment for applying a PostgreSQL type cast
+ * (e.g., `$cast('int4')` appends `::int4` to the generated SQL).
+ */
 type SQLCast<T> = T & { $cast: (type: PGType) => T };
 
 const DEFAULT_TABLE_FORMAT: TableFormatOptions = { schema: true, quote: true };
@@ -170,12 +232,24 @@ const DEFAULT_FUNCTION_FORMAT: FunctionFormatOptions = {
   ...DEFAULT_TABLE_FORMAT,
 };
 
+// Internal symbols used by the proxy system:
+// CallableProp — marks a function as proxy-interceptable; when encountered during template interpolation it is invoked to get the SQL fragment.
+// SQLProp     — carries the pre-built SQL string on format objects so the template engine can inline it without adding a parameter placeholder.
+// ValuesProp  — carries the parameter values array alongside a SQL fragment.
 const CallableProp = Symbol('callableProperty');
 const SQLProp = Symbol('sqlProperty');
 const ValuesProp = Symbol('valuesProperty');
 
+/**
+ * The core query shape produced by SQL template literals: a parameterized SQL string
+ * and the corresponding ordered values array ready for `pg` to bind as `$1, $2, ...`.
+ */
 export type SQLQuery = { sql: string; values: unknown[] };
 
+/**
+ * Type guard that checks whether a value is an `SQLQuery` (has both `sql` and `values`
+ * properties). Used during template interpolation to detect nested subqueries.
+ */
 const isQuery = (val: unknown): val is SQLQuery => {
   return (
     !!val &&
@@ -185,6 +259,13 @@ const isQuery = (val: unknown): val is SQLQuery => {
   );
 };
 
+/**
+ * Core template literal handler for building parameterized SQL queries. Processes a
+ * tagged template string, converting each interpolated value into a numbered `$N`
+ * placeholder (or inlining pre-built SQL fragments) and collecting the bound values.
+ * The returned `SQLQuery` is also callable as `(alias) => SQLQuery` for use as a
+ * named subquery (`(SELECT ...) AS "alias"`).
+ */
 const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
   let sql = '';
   const values: unknown[] = [];
@@ -201,18 +282,19 @@ const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
         paramValue = paramValue();
       }
       switch (true) {
+        // Null literal — pass through as parameterized value
         case paramValue === null:
           values.push(null);
           paramString = `$${valueIndex++}`;
           break;
-        // Param is a decription
+        // SQL fragment from a format function — inline the pre-built SQL string
         case paramValue !== null &&
           typeof paramValue === 'object' &&
           SQLProp in paramValue &&
           typeof paramValue[SQLProp] === 'string':
           paramString = paramValue[SQLProp];
           break;
-        // Param value is a subquery
+        // Subquery — renumber its $N placeholders to avoid collisions and merge values
         case isQuery(paramValue):
           {
             paramString = paramValue.sql.replaceAll(
@@ -224,25 +306,28 @@ const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
             valueIndex += paramValue.values.length;
           }
           break;
-        // Param is a value
+        // Boolean — cast explicitly to avoid implicit pg coercion
         case typeof paramValue === 'boolean':
           values.push(paramValue);
           paramString = `$${valueIndex++}::boolean`;
           break;
+        // Date — convert to ISO string with timestamptz cast
         case paramValue instanceof Date:
           values.push(paramValue.toISOString());
           paramString = `$${valueIndex++}::timestamptz`;
           break;
+        // Number — cast to numeric
         case typeof paramValue === 'number':
           values.push(paramValue);
           paramString = `$${valueIndex++}::numeric`;
           break;
+        // String or array — pass as-is (pg handles binding)
         case typeof paramValue === 'string':
         case Array.isArray(paramValue):
           values.push(paramValue);
           paramString = `$${valueIndex++}`;
           break;
-
+        // Plain object — serialize to JSON with jsonb cast
         case typeof paramValue === 'object':
           values.push(JSON.stringify(paramValue));
           paramString = `$${valueIndex++}::jsonb`;
