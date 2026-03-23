@@ -9,7 +9,7 @@ export async function withSchema(
   db: Database,
   fn: (schema: string) => Promise<void>,
 ): Promise<void> {
-  const schema = `pg_temp_${randomUUID().replace(/-/g, '_')}`;
+  const schema = `oopg_test_${randomUUID().replace(/-/g, '_')}`;
   await db.pool.query(`CREATE SCHEMA "${schema}"`);
   try {
     await fn(schema);
