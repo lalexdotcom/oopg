@@ -98,9 +98,10 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260323-j7y | Fix schema naming in tests/helpers.ts: change pg_temp_ prefix to oopg_test_ | 2026-03-23 | 21b2aee | [260323-j7y-fix-schema-naming-in-tests-helpers-ts-ch](.planning/quick/260323-j7y-fix-schema-naming-in-tests-helpers-ts-ch/) |
+| 260323-qoq | Add type-level tests and Database.select overload coverage (incl. SQLQuery callback form) | 2026-03-23 | 30284bd | [260323-qoq-add-type-level-tests-and-database-select](.planning/quick/260323-qoq-add-type-level-tests-and-database-select/) |
 
 ## Session Continuity
 
 Last session: 2026-03-23T19:23:49.631Z
-Stopped at: Completed 260323-qoq-PLAN.md
+Stopped at: Completed quick task 260323-qoq — type-level tests + Database.select overload coverage
 Resume file: None
