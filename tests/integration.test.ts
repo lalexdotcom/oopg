@@ -1,10 +1,17 @@
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, test } from '@rstest/core';
 import { Database } from '../src/database';
+import type { EntityRow, Table } from '../src/database';
 import { chunk, first, select, step, stream } from '../src/query';
 import { createSQLContext } from '../src/sql';
 import { bulkWrite, createIndexes, createTable, insertIntoTable } from '../src/tables';
 import { withSchema } from './helpers';
+
+// Subclass used by the SQLQuery callback overload tests — must have a named
+// property so createSQLContext can build a typed SQL proxy for it.
+class ItemsDB extends Database {
+  declare items: Table<EntityRow<{ id: number; name: string; value: number }>>;
+}
 
 let db: Database;
 
@@ -601,6 +608,136 @@ describe('partial index WHERE clause (TYPE-04)', () => {
       } finally {
         client.release();
       }
+    });
+  });
+});
+
+describe('Database.select string overloads', () => {
+  test('string-only — returns all rows', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      const rows = await db.select<{ id: number; name: string; value: number }>(
+        `SELECT * FROM "${schema}"."items" ORDER BY id`,
+      );
+      expect(rows).toHaveLength(3);
+      expect(rows[0].name).toBe('alpha');
+    });
+  });
+
+  test('string + values — filters with bound parameter', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      const rows = await db.select<{ id: number; name: string; value: number }>(
+        `SELECT * FROM "${schema}"."items" WHERE value > $1 ORDER BY id`,
+        [10],
+      );
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe('beta');
+    });
+  });
+
+  test('string + values + options — debug option accepted', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      const rows = await db.select<{ id: number; name: string; value: number }>(
+        `SELECT * FROM "${schema}"."items" WHERE name = $1`,
+        ['gamma'],
+        { debug: false },
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].value).toBe(30);
+    });
+  });
+
+  test('stream mode — returns Readable and yields all rows', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      const readable = await db.select(
+        `SELECT * FROM "${schema}"."items" ORDER BY id`,
+        { stream: true },
+      );
+      expect(readable).toBeInstanceOf(Readable);
+      const collected: unknown[] = [];
+      for await (const row of readable) {
+        collected.push(row);
+      }
+      expect(collected).toHaveLength(3);
+    });
+  });
+
+  test('stream + values — returns Readable filtered by bound parameter', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      const readable = await db.select(
+        `SELECT * FROM "${schema}"."items" WHERE value >= $1 ORDER BY id`,
+        [20],
+        { stream: true },
+      );
+      expect(readable).toBeInstanceOf(Readable);
+      const collected: unknown[] = [];
+      for await (const row of readable) {
+        collected.push(row);
+      }
+      expect(collected).toHaveLength(2);
+    });
+  });
+});
+
+describe('Database.select SQLQuery callback overloads', () => {
+  let idb: ItemsDB;
+
+  beforeAll(() => {
+    const url = process.env.TEST_DATABASE_URL;
+    if (!url) throw new Error('TEST_DATABASE_URL is not set');
+    idb = new ItemsDB(url);
+  });
+
+  afterAll(async () => {
+    await idb.pool.end();
+  });
+
+  test('callback — select all rows', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      idb.items = idb.table<{ id: number; name: string; value: number }>({ name: 'items', schema });
+      const rows = await idb.select<{ id: number; name: string; value: number }>(
+        (sql, { items }) => sql`SELECT * FROM ${items} ORDER BY ${items.id}`,
+      );
+      expect(rows).toHaveLength(3);
+      expect(rows[0].name).toBe('alpha');
+    });
+  });
+
+  test('callback — bound parameter in WHERE', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+      await db.pool.query(
+        `INSERT INTO "${schema}"."items" (name, value) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30)`,
+      );
+      idb.items = idb.table<{ id: number; name: string; value: number }>({ name: 'items', schema });
+      const rows = await idb.select<{ id: number; name: string; value: number }>(
+        (sql, { items }) => sql`SELECT * FROM ${items} WHERE ${items.value} > ${10} ORDER BY ${items.id}`,
+      );
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe('beta');
     });
   });
 });
