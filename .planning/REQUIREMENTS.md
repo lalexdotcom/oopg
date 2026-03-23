@@ -25,17 +25,17 @@
 
 ### Refactoring
 
-- [ ] **REFAC-01**: Transaction Proxy chain (3–5 nested layers) replaced with an explicit `TransactionClient extends Database` class; external API (`callback(transaction: Database, { commit, rollback })`) is unchanged
-- [ ] **REFAC-02**: `connect()` method Proxy (`database.ts:647`) cleaned up using the same pattern as the TransactionClient replacement
+- [x] **REFAC-01**: Transaction Proxy chain (3–5 nested layers) replaced with an explicit `TransactionClient extends Database` class; external API (`callback(transaction: Database, { commit, rollback })`) is unchanged
+- [x] **REFAC-02**: `connect()` method Proxy (`database.ts:647`) cleaned up using the same pattern as the TransactionClient replacement
 - ~~**REFAC-03**: Assignment-in-while-condition (`while ((rows = await curs.read(size)).length)`) refactored to an explicit `while (true)` with a `break` condition~~ — **Cancelled** (D-11: pattern retained; style is acceptable)
 - [x] **REFAC-04**: Global `types.setTypeParser()` calls moved from module-level side effects into an exported `configure()` function; existing behavior preserved as opt-in default
 
 ### Type Safety
 
-- [ ] **TYPE-01**: All `(this.constructor as any)` casts in `database.ts` replaced with a typed static interface or equivalent pattern
-- [ ] **TYPE-02**: `sql.ts` default switch case throws an explicit error for unknown value types instead of silently interpolating (SQL injection risk)
-- [ ] **TYPE-03**: CTE runtime implementation completed — `alias()` and `materialize()` methods functional, not just type-level stubs
-- [ ] **TYPE-04**: Partial index runtime implementation completed — WHERE clause is validated and rendered into the generated SQL
+- [x] **TYPE-01**: All `(this.constructor as any)` casts in `database.ts` replaced with a typed static interface or equivalent pattern
+- [x] **TYPE-02**: `sql.ts` default switch case throws an explicit error for unknown value types instead of silently interpolating (SQL injection risk)
+- [x] **TYPE-03**: CTE runtime implementation completed — `alias()` and `materialize()` methods functional, not just type-level stubs
+- [x] **TYPE-04**: Partial index runtime implementation completed — WHERE clause is validated and rendered into the generated SQL
 
 ### Documentation
 
@@ -89,10 +89,10 @@
 | REFAC-02 | Phase 3 | Complete |
 | REFAC-03 | N/A | Cancelled |
 | REFAC-04 | Phase 3 | Complete |
-| TYPE-01 | Phase 4 | Pending |
-| TYPE-02 | Phase 4 | Pending |
-| TYPE-03 | Phase 4 | Pending |
-| TYPE-04 | Phase 4 | Pending |
+| TYPE-01 | Phase 4 | Complete |
+| TYPE-02 | Phase 4 | Complete |
+| TYPE-03 | Phase 4 | Complete |
+| TYPE-04 | Phase 4 | Complete |
 | DOC-01 | Phase 5 | Complete |
 | DOC-02 | Phase 5 | Complete |
 | DOC-03 | Phase 5 | Complete |
@@ -107,4 +107,4 @@
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after initial definition*
+*Last updated: 2026-03-23 — all v1 requirements checked off after Phase 4/5 completion*
