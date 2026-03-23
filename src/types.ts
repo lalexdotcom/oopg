@@ -201,9 +201,9 @@ export const datetime = (auto = true) =>
  * });
  * ```
  */
-export const required = <T>(def: ColumnDefinition<T>) => {
-  if (typeof def === 'object') return { ...def, required: true };
-  return { type: def, required: true };
+export const required = <T extends ColumnDefinition>(def: T) => {
+  if (typeof def === 'object') return { ...def, required: true as const };
+  return { type: def, required: true as const };
 };
 
 // type PGTypesMap = typeof PGTypesMap;

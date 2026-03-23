@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import { boolean, date, datetime } from '../src/types';
+import { boolean, date, datetime, required, varchar } from '../src/types';
 import type {
   AutoColumns,
   ColumnToType,
@@ -91,11 +91,8 @@ describe('ColumnToType mappings', () => {
 });
 
 // Column definitions used by InputType / OutputType / AutoColumns tests
-// Note: required() helper is intentionally NOT used here — its return type widens
-// `required: true` to `required: boolean`, which breaks InputType/OutputType inference.
-// Direct object literals with `required: true as const` preserve the literal type.
 const cols = {
-  name: { type: 'varchar' as const, required: true as const }, // required — mandatory on input, non-optional on output
+  name: required(varchar(100)), // required — mandatory on input, non-optional on output
   score: { type: 'int' as const },                              // optional — no required, no default
   createdAt: datetime(),                                        // has default CURRENT_TIMESTAMP — optional on input, non-optional on output
   active: boolean(false),                                       // has default 'false' — optional on input, non-optional on output
