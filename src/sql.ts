@@ -30,9 +30,8 @@ export type SQLTemplate = (
 ) => { sql: string; values: unknown[]; (alias: string): void };
 
 export type SQLCTEDefinition<T = Record<string, unknown>> = {
-  // (alias?: string): void;
   alias(name: string): SQLCTEDefinition<T>;
-  use(materialized?: boolean): void;
+  use(materialized?: boolean): SQLQuery;
 } & Record<keyof T, void>;
 
 export type SQLCTE = <T = Record<string, unknown>>(
@@ -906,15 +905,7 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
               case prop === 'use':
                 return (materialized?: boolean) => {
                   return {
-                    sql: `"${cteAlias}" AS ${
-                      materialized !== undefined
-                        ? materialized
-                          ? 'MATERIALIZED'
-                          : 'NOT MATERIALIZED'
-                        : ''
-                    } (
-											${cteQuery.sql}
-										)`,
+                    sql: `"${cteAlias}" AS${materialized !== undefined ? (materialized ? ' MATERIALIZED' : ' NOT MATERIALIZED') : ''} (${cteQuery.sql.trim()})`,
                     values: cteQuery.values,
                   };
                 };
