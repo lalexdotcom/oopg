@@ -72,7 +72,10 @@ Plans:
   2. Passing an object with a custom `toString()` as a SQL template parameter throws an explicit error — no silent string interpolation
   3. CTE `alias()` and `materialize()` methods produce valid SQL at runtime, not just type-level stubs
   4. Partial index `WHERE` clause is rendered into generated SQL — no more `WHERE undefined` in produced DDL
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 04-01-PLAN.md — Per-pool type parsers, any-cast removal, configure() deletion (TYPE-01)
+- [ ] 04-02-PLAN.md — SQL injection guard, CTE type fix, partial index test (TYPE-02, TYPE-03, TYPE-04)
 
 ### Phase 5: Documentation and Packaging
 **Goal**: The library is fully documented and the package.json is correct for public ESM consumers — ready to publish to npm
@@ -96,5 +99,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Test Infrastructure | 2/2 | Complete |  |
 | 2. Correctness Fixes | 2/2 | Complete    | 2026-03-23 |
 | 3. TransactionClient Refactor | 1/2 | In Progress|  |
-| 4. Type Safety and Security | 0/TBD | Not started | - |
+| 4. Type Safety and Security | 0/2 | Not started | - |
 | 5. Documentation and Packaging | 0/TBD | Not started | - |
