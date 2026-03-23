@@ -6,11 +6,17 @@ import EventEmitter from 'eventemitter3';
 import {
   type ClientBase,
   type ClientConfig,
+  type CustomTypesConfig,
   type FieldDef,
   Pool,
   type PoolClient,
   type PoolConfig,
+  types as pgTypes,
 } from 'pg';
+
+// builtinsTypes is defined in pg-types (transitive dep). Derive the string union
+// from the runtime builtins object so we don't need pg-types as a direct dep.
+type BuiltinsTypes = keyof typeof pgTypes.builtins;
 import type Cursor from 'pg-cursor';
 import { DEFAULT_POSTGRES_SCHEMA } from './const';
 import {
@@ -88,6 +94,28 @@ export type SchemaBuilder<DB extends Database, S extends Schema> = (utils: {
   func: DB['func'];
 }) => S;
 
+const OOPG_TYPE_DEFAULTS: Partial<Record<BuiltinsTypes, (val: string) => unknown>> = {
+  INT8: (val) => Number.parseInt(val, 10),
+  INT4: (val) => Number.parseInt(val, 10),
+  NUMERIC: (val) => Number.parseFloat(val),
+};
+
+function buildTypeParser(
+  overrides?: Partial<Record<BuiltinsTypes, (val: string) => unknown>>,
+): CustomTypesConfig {
+  const merged = { ...OOPG_TYPE_DEFAULTS, ...overrides };
+  return {
+    getTypeParser: (id, format) => {
+      const name = (Object.entries(pgTypes.builtins) as [BuiltinsTypes, number][])
+        .find(([, oid]) => oid === id)?.[0];
+      if (name && name in merged) {
+        return merged[name]!;
+      }
+      return pgTypes.getTypeParser(id, format ?? 'text');
+    },
+  };
+}
+
 let ClientID = 0;
 
 const SCHEMA_PROPERTY = Symbol('DATABASE_SCHEMA');
@@ -100,8 +128,11 @@ type DatabaseSelectOptions = SelectOptions;
 
 export class Database implements EventEmitter {
   #config: Readonly<PoolConfig>;
+  #typeOverrides?: Partial<Record<BuiltinsTypes, (val: string) => unknown>>;
   pool: Pool;
   #acquired = new Map<ClientBase, number>();
+
+  protected static DEFAULT_SCHEMA: string | undefined = undefined;
 
   eventEmitter = new EventEmitter();
   listenerClient?: Promise<PoolClient>;
@@ -112,15 +143,17 @@ export class Database implements EventEmitter {
 
   constructor(
     config: string | ClientConfig,
-    poolConfig?: PoolConfig & ClientConfig & { debug?: boolean },
+    poolConfig?: Omit<PoolConfig & ClientConfig, 'types'> & { debug?: boolean; types?: Partial<Record<BuiltinsTypes, (val: string) => unknown>> },
   ) {
+    const { types: typeOverrides, ...restPoolConfig } = poolConfig ?? {};
+    this.#typeOverrides = typeOverrides;
     // this.config = typeof config === 'string' ? parseConnectionString(config) : config;
     this.#config = Object.freeze({
-      ...poolConfig,
+      ...restPoolConfig,
       ...(typeof config === 'string' ? parseConnectionString(config) : config),
       // idleTimeoutMillis: 0,
     });
-    this.pool = new Pool(this.#config);
+    this.pool = new Pool({ ...this.#config, types: buildTypeParser(this.#typeOverrides) });
     this.pool.on('acquire', (client) => {
       const clientId = ++ClientID;
       this.#acquired.set(client, clientId);
@@ -225,6 +258,14 @@ export class Database implements EventEmitter {
 
   get config() {
     return structuredClone(this.#config);
+  }
+
+  get _typeOverrides(): Partial<Record<BuiltinsTypes, (val: string) => unknown>> | undefined {
+    return this.#typeOverrides;
+  }
+
+  protected get _defaultSchema(): string {
+    return (this.constructor as typeof Database).DEFAULT_SCHEMA ?? DEFAULT_POSTGRES_SCHEMA;
   }
 
   get status() {
@@ -620,15 +661,13 @@ export class Database implements EventEmitter {
             : { ...tableDesc, schema: schemaName },
         );
       },
-      view: (viewDesc: EntityDescription, materialized?: boolean) => {
-        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-        return (this.view as any)(
+      view: ((viewDesc: EntityDescription, materialized?: boolean) => {
+        const desc =
           typeof viewDesc === 'string'
             ? { schema: schemaName, name: viewDesc }
-            : { ...viewDesc, schema: schemaName },
-          materialized,
-        );
-      },
+            : { ...viewDesc, schema: schemaName };
+        return materialized ? this.view(desc, true) : this.view(desc);
+      }) as unknown as this['view'],
       func: (...args: Parameters<Database['func']>) => {
         let [funcDesc, params] = args;
         if (typeof funcDesc === 'string') {
@@ -654,9 +693,7 @@ export class Database implements EventEmitter {
       typeof name === 'string'
         ? {
             schema:
-              // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-              (this.constructor as any).DEFAULT_SCHEMA ??
-              DEFAULT_POSTGRES_SCHEMA,
+              this._defaultSchema,
             name,
           }
         : name;
@@ -679,9 +716,7 @@ export class Database implements EventEmitter {
       typeof name === 'string'
         ? {
             schema:
-              // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-              (this.constructor as any).DEFAULT_SCHEMA ??
-              DEFAULT_POSTGRES_SCHEMA,
+              this._defaultSchema,
             name,
           }
         : name;
@@ -800,9 +835,7 @@ export class Database implements EventEmitter {
       typeof name === 'string'
         ? {
             schema:
-              // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-              (this.constructor as any).DEFAULT_SCHEMA ??
-              DEFAULT_POSTGRES_SCHEMA,
+              this._defaultSchema,
             name,
           }
         : name;
@@ -834,7 +867,7 @@ export class TransactionClient extends Database {
   constructor(client: PoolClient, parentDb: Database) {
     // super() creates a Pool that will never connect (pg.Pool is lazy).
     // We end it immediately to avoid any resource leak.
-    super(parentDb.config);
+    super(parentDb.config, { types: parentDb._typeOverrides });
     this.#client = client;
     this.#parentPool = parentDb.pool;
     // End the unused pool created by super() — it is immediately replaced below.
@@ -1222,8 +1255,7 @@ class FuncImpl<DB extends Database, ARGS extends (PGType | [PGType])[]>
     optionsWhenValues?: OperationOptions | undefined,
   ) {
     const { sql, values, options } = this.database.getSQLValuesOptions(
-      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-      query as any,
+      query as SQLQuery<Database> | string,
       valuesOrOptions,
       optionsWhenValues,
     );
@@ -1478,8 +1510,7 @@ class ViewImpl<DB extends Database, EROW extends EntityRow<RowWithId>>
     optionsWhenValues?: OperationOptions | undefined,
   ) {
     const { sql, values, options } = this.database.getSQLValuesOptions(
-      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-      query as any,
+      query as SQLQuery<Database> | string,
       valuesOrOptions,
       optionsWhenValues,
     );
