@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from '@rstest/core';
 import { Readable } from 'node:stream';
-import { configure } from '../src/configure';
 import { Database } from '../src/database';
 import { chunk, first, select, step, stream } from '../src/query';
 import { bulkWrite, insertIntoTable } from '../src/tables';
@@ -11,8 +10,9 @@ let db: Database;
 beforeAll(() => {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL is not set');
+  // Type parsers (INT8→number, INT4→number, NUMERIC→float) are applied automatically
+  // via buildTypeParser() in the Database constructor — no explicit configure() call needed.
   db = new Database(url);
-  configure();
 });
 
 afterAll(async () => {
@@ -407,5 +407,27 @@ describe('bulk operations', () => {
         client.release();
       }
     });
+  });
+});
+
+describe('type parsers', () => {
+  test('oopg defaults parse INT8 and NUMERIC as JavaScript numbers', async () => {
+    const result = await db.pool.query('SELECT 42::int8 AS big, 3.14::numeric AS num');
+    expect(typeof result.rows[0].big).toBe('number');
+    expect(result.rows[0].big).toBe(42);
+    expect(typeof result.rows[0].num).toBe('number');
+    expect(result.rows[0].num).toBe(3.14);
+  });
+
+  test('Database constructor applies per-pool type parser overrides', async () => {
+    const url = process.env.TEST_DATABASE_URL!;
+    const dbBigInt = new Database(url, { types: { INT8: (val) => BigInt(val) } });
+    try {
+      const result = await dbBigInt.pool.query('SELECT 42::int8 AS big');
+      expect(typeof result.rows[0].big).toBe('bigint');
+      expect(result.rows[0].big).toBe(42n);
+    } finally {
+      await dbBigInt.pool.end();
+    }
   });
 });
