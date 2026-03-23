@@ -103,10 +103,11 @@ None yet.
 | 260323-rng | fix build entry point error | 2026-03-23 | b5d8367 | [260323-rng-fix-build-entry-point-error](.planning/quick/260323-rng-fix-build-entry-point-error/) |
 | 260323-row | move index.ts to src and remove rslib entry override | 2026-03-23 | - | [260323-row-move-index-ts-to-src-and-remove-rslib-en](.planning/quick/260323-row-move-index-ts-to-src-and-remove-rslib-en/) |
 | 260323-rs2 | Add JSDoc and inline comments to sql.ts | 2026-03-23 | 27c1f12 | [260323-rs2-add-jsdoc-and-inline-comments-to-sql-ts-](.planning/quick/260323-rs2-add-jsdoc-and-inline-comments-to-sql-ts-/) |
+| 260323-sh3 | add npm registry fields to package.json (repository, readme) | 2026-03-23 | 046f5c8 | [260323-sh3-add-npm-registry-fields-to-package-json-](.planning/quick/260323-sh3-add-npm-registry-fields-to-package-json-/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-23 - Completed quick task 260323-row: move index.ts to src and remove rslib entry override
+Last activity: 2026-03-23 - Completed quick task 260323-sh3: add npm registry fields to package.json
 Last session: 2026-03-23T20:10:08.677Z
 Stopped at: Completed quick task 260323-rs2: Add JSDoc and inline comments to sql.ts
 Resume file: None
