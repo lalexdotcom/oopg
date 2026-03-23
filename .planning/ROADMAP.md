@@ -87,7 +87,11 @@ Plans:
   3. `CHANGELOG.md` exists with a v1.0.0 entry summarizing all changes made across phases 1–4
   4. `package.json` `exports` field correctly resolves for ESM consumers; `sideEffects: false` is present; `engines.node` is set to `>=18`
   5. `columnTypeToSQL()` throws a descriptive error for invalid type combinations (e.g., `varchar + scale`) instead of generating invalid SQL
-**Plans**: TBD
+**Plans:** 2/3 plans executed
+Plans:
+- [x] 05-01-PLAN.md — package.json cleanup, CHANGELOG creation, columnTypeToSQL validation (PKG-01, PKG-02, PKG-03, DOC-03)
+- [x] 05-02-PLAN.md — JSDoc coverage on all exported symbols (DOC-01)
+- [ ] 05-03-PLAN.md — Complete README rewrite with all 10 sections (DOC-02)
 
 ## Progress
 
@@ -100,4 +104,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Correctness Fixes | 2/2 | Complete    | 2026-03-23 |
 | 3. TransactionClient Refactor | 2/2 | Complete | 2026-03-23 |
 | 4. Type Safety and Security | 0/2 | Not started | - |
-| 5. Documentation and Packaging | 0/TBD | Not started | - |
+| 5. Documentation and Packaging | 2/3 | In Progress|  |

@@ -39,15 +39,15 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: All exported functions, classes, and types have JSDoc with `@param`, `@returns`, and at least one usage example; block-level comments in each source file describe the purpose of each logical section
+- [x] **DOC-01**: All exported functions, classes, and types have JSDoc with `@param`, `@returns`, and at least one usage example; block-level comments in each source file describe the purpose of each logical section
 - [ ] **DOC-02**: README covers: installation, quick start, schema definition, query modes, transactions, bulk operations, streaming, LISTEN/NOTIFY, `configure()`, and the `API<DB>` base class — with code examples for each
-- [ ] **DOC-03**: `CHANGELOG.md` initialized with a v1.0.0 entry summarizing all changes
+- [x] **DOC-03**: `CHANGELOG.md` initialized with a v1.0.0 entry summarizing all changes
 
 ### Packaging
 
-- [ ] **PKG-01**: `package.json` `exports` field verified and corrected for ESM consumers (main entry, types entry, sub-path exports if any)
-- [ ] **PKG-02**: `sideEffects: false` added to `package.json` after `configure()` implementation removes global type parser side effects from module load
-- [ ] **PKG-03**: Runtime validation added to `columnTypeToSQL()` — invalid type combinations (e.g., `varchar + scale`) throw a descriptive error instead of generating invalid SQL
+- [x] **PKG-01**: `package.json` `exports` field verified and corrected for ESM consumers (main entry, types entry, sub-path exports if any)
+- [x] **PKG-02**: `sideEffects: false` added to `package.json` after `configure()` implementation removes global type parser side effects from module load
+- [x] **PKG-03**: Runtime validation added to `columnTypeToSQL()` — invalid type combinations (e.g., `varchar + scale`) throw a descriptive error instead of generating invalid SQL
 
 ## v2 Requirements
 
@@ -93,12 +93,12 @@
 | TYPE-02 | Phase 4 | Pending |
 | TYPE-03 | Phase 4 | Pending |
 | TYPE-04 | Phase 4 | Pending |
-| DOC-01 | Phase 5 | Pending |
+| DOC-01 | Phase 5 | Complete |
 | DOC-02 | Phase 5 | Pending |
-| DOC-03 | Phase 5 | Pending |
-| PKG-01 | Phase 5 | Pending |
-| PKG-02 | Phase 5 | Pending |
-| PKG-03 | Phase 5 | Pending |
+| DOC-03 | Phase 5 | Complete |
+| PKG-01 | Phase 5 | Complete |
+| PKG-02 | Phase 5 | Complete |
+| PKG-03 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total

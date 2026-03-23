@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Phase 5 context gathered (assumptions mode)
-last_updated: "2026-03-23T17:36:22.342Z"
+status: Ready to execute
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-23T18:37:17.863Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Type-safe, ergonomic PostgreSQL access in TypeScript — the schema defines the types, the API enforces them.
-**Current focus:** Phase 04 — type-safety-and-security
+**Current focus:** Phase 05 — documentation-and-packaging
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (documentation-and-packaging) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -51,6 +51,8 @@ Plan: Not started
 | Phase 02-correctness-fixes P01 | 2 | 1 tasks | 1 files |
 | Phase 02-correctness-fixes P02 | 12 | 2 tasks | 2 files |
 | Phase 03-transactionclient-refactor P01 | 8 | 2 tasks | 4 files |
+| Phase 05 P01 | 15 | 2 tasks | 4 files |
+| Phase 05-documentation-and-packaging P02 | 9 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -70,6 +72,10 @@ Recent decisions affecting current work:
 - [Phase 02-02]: Memoize block removed entirely from database.ts — undocumented feature with async anti-pattern, no API surface loss
 - [Phase 03-01]: Keep types import in query.ts after removing setTypeParser calls — types is still used in query config spread objects
 - [Phase 03-01]: Second schema-entity-routing test documents known Proxy gap (local schema variables not intercepted) — TransactionClient refactor (Plan 02) must fix
+- [Phase 05]: Remove private:true rather than change to false — true removal is clearest signal for publish readiness
+- [Phase 05]: columnTypeToSQL scale guard uses 'in' operator to handle both typed and untyped callers
+- [Phase 05-02]: JSDoc examples use actual public API signatures (no configure(), no internal paths) per D-09 and D-12
+- [Phase 05-02]: Internal helpers (columnDefinitionToSQL, formatEntity, valueToSQL, clientQuery, parseConnectionString, buildTypeParser) received no JSDoc per D-08
 
 ### Pending Todos
 
@@ -89,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T17:36:22.336Z
-Stopped at: Phase 5 context gathered (assumptions mode)
-Resume file: .planning/phases/05-documentation-and-packaging/05-CONTEXT.md
+Last session: 2026-03-23T18:37:17.861Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: None
