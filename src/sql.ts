@@ -24,21 +24,41 @@ const LL = L.scope('sql');
 // biome-ignore lint/suspicious/noExplicitAny: <explanation>
 type AllKeys<T> = T extends any ? keyof T : never;
 
+/**
+ * Tagged template function returned by `createSQLContext`. Accepts a template literal
+ * with interpolated values and returns `{ sql, values }` for use in parameterized queries.
+ * The result is also callable as `(alias) => SQLQuery` to wrap it as a named subquery.
+ */
 export type SQLTemplate = (
   strings: TemplateStringsArray,
   ...params: unknown[]
 ) => { sql: string; values: unknown[]; (alias: string): void };
 
+/**
+ * Represents a Common Table Expression (CTE) definition. Provides `.alias()` to set
+ * the CTE name, `.use()` to produce the `WITH` clause entry, and typed column accessors
+ * for referencing the CTE in subsequent query fragments.
+ */
 export type SQLCTEDefinition<T = Record<string, unknown>> = {
   alias(name: string): SQLCTEDefinition<T>;
   use(materialized?: boolean): SQLQuery;
 } & Record<keyof T, void>;
 
+/**
+ * Tagged template function that creates a CTE definition from a SQL fragment.
+ * Returns an `SQLCTEDefinition` that can be aliased and consumed in a `WITH` clause.
+ */
 export type SQLCTE = <T = Record<string, unknown>>(
   strings: TemplateStringsArray,
   ...params: unknown[]
 ) => SQLCTEDefinition<T>;
 
+/**
+ * Maps a `Database` subclass's schema entities (tables, views, functions, sub-schemas)
+ * to their SQL-template counterparts. This is the type of `tables` inside `db.sql`.
+ * When `STRICT` is `true`, only declared schema keys are accessible; when `false`,
+ * unknown string keys fall back to untyped table references.
+ */
 type SQLTables<DB extends Database, STRICT extends boolean = true> = {
   // Table/View Properties
   [TK in keyof DB as DB[TK] extends DatabaseElement | Schema
@@ -72,6 +92,11 @@ type SQLTables<DB extends Database, STRICT extends boolean = true> = {
   ? { [key: string]: SQLTable<Record<string, unknown>, false> }
   : Record<string, never>);
 
+/**
+ * SQL template representation of a table. Extends `SQLSelect` with write-side helpers:
+ * `$insert` produces an INSERT target with an optional column list, and `$update`
+ * produces a SET clause from a key-value object.
+ */
 type SQLTable<T extends Row, STRICT extends boolean> = {
   $insert: SQLFormat<
     (...args: AllKeys<T>[]) => SQLFormat<void, TableFormatOptions>,
@@ -80,6 +105,11 @@ type SQLTable<T extends Row, STRICT extends boolean> = {
   $update: (sets: Partial<Record<AllKeys<T>, unknown>>) => void;
 } & SQLSelect<T, STRICT>;
 
+/**
+ * SQL template representation of a selectable entity (table or view). Provides `$all`
+ * for `table.*`, `$select` for a named column list with optional aliases, `$columns`
+ * for a bare column list (no table prefix), and per-column accessors returning `SQLColumn`.
+ */
 type SQLSelect<T extends Row, STRICT extends boolean> = SQLAlias<
   SQLFormat<
     {
@@ -105,10 +135,18 @@ type SQLSelect<T extends Row, STRICT extends boolean> = SQLAlias<
   >
 >;
 
+/**
+ * SQL template representation of a stored function. Callable with typed arguments;
+ * returns an aliasable SQL fragment representing the function call expression.
+ */
 type SQLFunction<ARGS extends (PGType | [PGType])[]> = (
   ...args: SQLFunctionParams<ARGS>
 ) => SQLAlias<SQLFormat<void, TableFormatOptions>>;
 
+/**
+ * Maps a function's `PGType` argument definitions to their JavaScript equivalents.
+ * Variadic arguments (wrapped in a tuple `[PGType]`) become rest arrays of SQL params.
+ */
 type SQLFunctionParams<ARGS extends (PGType | [PGType])[]> = {
   [K in keyof ARGS]: ARGS[K] extends PGType
     ? JSType<ARGS[K]> | SQLParam<JSType<ARGS[K]>>
@@ -119,6 +157,10 @@ type SQLFunctionParams<ARGS extends (PGType | [PGType])[]> = {
       : never;
 };
 
+/**
+ * Union of JavaScript types accepted as interpolated parameters inside SQL template literals.
+ * Covers all primitives, arrays, dates, and nested `SQLQuery` subqueries.
+ */
 type SQLParam<_T = unknown> =
   | string
   | number
@@ -134,6 +176,12 @@ type ColumnFormatOptions = TableFormatOptions & { table?: boolean };
 // type SQLColumn<T> = SQLAlias<SQLFormat<(alias?: string) => SQLFormat<void, ColumnFormatOptions>, ColumnFormatOptions>> &
 //     (T extends object ? { [key in keyof T]: SQLAlias<{ $cast: (type: PGType) => void }> } : {});
 
+/**
+ * SQL template representation of a single column. Supports aliasing via `$format`,
+ * PostgreSQL type casting via `$cast`, and JSON field extraction via sub-property
+ * access (e.g., `col.field` produces `col->>'field'`). When `T` is an object type,
+ * each key is also exposed as a typed JSON field accessor.
+ */
 type SQLColumn<T> = (T extends object
   ? {
       [K in AllKeys<T>]: SQLAlias<
@@ -151,7 +199,16 @@ type SQLColumn<T> = (T extends object
     : unknown) &
   SQLAlias<SQLCast<SQLFormat<void, ColumnFormatOptions>>>;
 
+/**
+ * Makes a value both directly usable as a SQL fragment and callable with an optional
+ * alias: `value` produces the raw SQL; `value('alias')` produces `... AS "alias"`.
+ */
 type SQLAlias<T = void> = T & ((alias?: string) => T);
+
+/**
+ * Adds a `$format(options)` method to any SQL fragment, allowing the caller to control
+ * schema inclusion, identifier quoting, and table-prefix behavior at call site.
+ */
 type SQLFormat<
   T = void,
   O extends Record<string, unknown> = Record<string, never>,
@@ -159,6 +216,11 @@ type SQLFormat<
 > = {
   $format: (options?: O) => R;
 } & T;
+
+/**
+ * Adds a `$cast(type)` method to any SQL fragment for applying a PostgreSQL type cast
+ * (e.g., `$cast('int4')` appends `::int4` to the generated SQL).
+ */
 type SQLCast<T> = T & { $cast: (type: PGType) => T };
 
 const DEFAULT_TABLE_FORMAT: TableFormatOptions = { schema: true, quote: true };
@@ -170,12 +232,24 @@ const DEFAULT_FUNCTION_FORMAT: FunctionFormatOptions = {
   ...DEFAULT_TABLE_FORMAT,
 };
 
+// Internal symbols used by the proxy system:
+// CallableProp — marks a function as proxy-interceptable; when encountered during template interpolation it is invoked to get the SQL fragment.
+// SQLProp     — carries the pre-built SQL string on format objects so the template engine can inline it without adding a parameter placeholder.
+// ValuesProp  — carries the parameter values array alongside a SQL fragment.
 const CallableProp = Symbol('callableProperty');
 const SQLProp = Symbol('sqlProperty');
 const ValuesProp = Symbol('valuesProperty');
 
+/**
+ * The core query shape produced by SQL template literals: a parameterized SQL string
+ * and the corresponding ordered values array ready for `pg` to bind as `$1, $2, ...`.
+ */
 export type SQLQuery = { sql: string; values: unknown[] };
 
+/**
+ * Type guard that checks whether a value is an `SQLQuery` (has both `sql` and `values`
+ * properties). Used during template interpolation to detect nested subqueries.
+ */
 const isQuery = (val: unknown): val is SQLQuery => {
   return (
     !!val &&
@@ -185,6 +259,13 @@ const isQuery = (val: unknown): val is SQLQuery => {
   );
 };
 
+/**
+ * Core template literal handler for building parameterized SQL queries. Processes a
+ * tagged template string, converting each interpolated value into a numbered `$N`
+ * placeholder (or inlining pre-built SQL fragments) and collecting the bound values.
+ * The returned `SQLQuery` is also callable as `(alias) => SQLQuery` for use as a
+ * named subquery (`(SELECT ...) AS "alias"`).
+ */
 const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
   let sql = '';
   const values: unknown[] = [];
@@ -201,18 +282,19 @@ const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
         paramValue = paramValue();
       }
       switch (true) {
+        // Null literal — pass through as parameterized value
         case paramValue === null:
           values.push(null);
           paramString = `$${valueIndex++}`;
           break;
-        // Param is a decription
+        // SQL fragment from a format function — inline the pre-built SQL string
         case paramValue !== null &&
           typeof paramValue === 'object' &&
           SQLProp in paramValue &&
           typeof paramValue[SQLProp] === 'string':
           paramString = paramValue[SQLProp];
           break;
-        // Param value is a subquery
+        // Subquery — renumber its $N placeholders to avoid collisions and merge values
         case isQuery(paramValue):
           {
             paramString = paramValue.sql.replaceAll(
@@ -224,25 +306,28 @@ const sqlTaggedTemplate = (strings: string[], ...params: unknown[]) => {
             valueIndex += paramValue.values.length;
           }
           break;
-        // Param is a value
+        // Boolean — cast explicitly to avoid implicit pg coercion
         case typeof paramValue === 'boolean':
           values.push(paramValue);
           paramString = `$${valueIndex++}::boolean`;
           break;
+        // Date — convert to ISO string with timestamptz cast
         case paramValue instanceof Date:
           values.push(paramValue.toISOString());
           paramString = `$${valueIndex++}::timestamptz`;
           break;
+        // Number — cast to numeric
         case typeof paramValue === 'number':
           values.push(paramValue);
           paramString = `$${valueIndex++}::numeric`;
           break;
+        // String or array — pass as-is (pg handles binding)
         case typeof paramValue === 'string':
         case Array.isArray(paramValue):
           values.push(paramValue);
           paramString = `$${valueIndex++}`;
           break;
-
+        // Plain object — serialize to JSON with jsonb cast
         case typeof paramValue === 'object':
           values.push(JSON.stringify(paramValue));
           paramString = `$${valueIndex++}::jsonb`;
@@ -484,6 +569,12 @@ const columnFieldFormatFunction =
     };
   };
 
+/**
+ * Marks a function as proxy-interceptable by attaching the `CallableProp` symbol.
+ * When the SQL template engine encounters a value that has `CallableProp` during
+ * interpolation, it invokes the function first to obtain the SQL fragment before
+ * processing the result.
+ */
 const callable = <F extends () => unknown>(
   fct: F,
   additional?: Record<string, unknown>,
@@ -491,10 +582,23 @@ const callable = <F extends () => unknown>(
   return Object.assign(fct, { ...additional, [CallableProp]: true });
 };
 
+/**
+ * Proxy handler that intercepts property access on table/view references inside SQL
+ * templates. Each property access on a table (e.g., `tables.users.name`) resolves to
+ * a formatted SQL column reference. Special `$`-prefixed properties provide table-level
+ * SQL operations:
+ *   - `$insert` — INSERT target with optional column list
+ *   - `$update` — SET clause fragments from a key-value object
+ *   - `$format` — formatted table name with schema/quote control
+ *   - `$select` — column list with optional aliases
+ *   - `$columns` — bare column list (no table prefix)
+ *   - `$all`    — `table.*` or just `*`
+ */
 const tableProxyHandler = (tb: EntityDescription, tableAlias?: string) => {
   return {
     get: <T>(o: T, column: keyof T) => {
       switch (column) {
+        // Returns an INSERT target: `schema.table (col1, col2)` with optional column list
         case '$insert':
           return Object.assign(
             (...columns: string[]) =>
@@ -512,6 +616,7 @@ const tableProxyHandler = (tb: EntityDescription, tableAlias?: string) => {
               ),
             { $format: insertFormatFunction(tb, {}) },
           );
+        // Returns SET clause fragments: `col1 = $1, col2 = $2` from a key-value object
         case '$update':
           return (
             sets: Record<string, unknown>,
@@ -527,20 +632,28 @@ const tableProxyHandler = (tb: EntityDescription, tableAlias?: string) => {
               ),
             );
           };
+        // Returns the table's formatted SQL name with configurable schema/quoting
         case '$format':
           return tableFormatFunction(tb, { alias: tableAlias });
+        // Returns a column list from selected column names with optional aliases
         case '$select':
           return columnListFunction(tb, tableAlias);
+        // Returns a column list without table prefix (for INSERT column lists)
         case '$columns':
           return columnListFunction(tb, tableAlias, { table: false });
+        // Returns `table.*` or just `*` depending on format options
         case '$all':
           return callable(columnFormatFunction(tb, '*', { tableAlias }), {
             $format: columnFormatFunction(tb, '*', { tableAlias }),
           });
+        // Internal symbol access — pass through to underlying object
         case SQLProp:
         case ValuesProp:
         case CallableProp:
           return o[column];
+        // Column access — returns a proxy that resolves to a formatted column reference.
+        // The returned value is both callable (for aliasing: `col('alias')`) and a proxy
+        // itself (for JSON field access: `col.field` and casting: `col.$cast('int4')`).
         default:
           if (typeof column !== 'string') return;
           return callable(
@@ -581,6 +694,8 @@ const tableProxyHandler = (tb: EntityDescription, tableAlias?: string) => {
                 get: <T>(tgt: T, field: keyof T) => {
                   if (tgt[field as keyof typeof tgt])
                     return tgt[field as keyof typeof tgt];
+                  // Handles sub-properties of a column reference: `$cast` for type casting,
+                  // `$format` for output control, and string keys for JSON field access (`column->>'field'`).
                   switch (field) {
                     case '$cast':
                       return Object.assign(
@@ -687,6 +802,16 @@ const tableProxyHandler = (tb: EntityDescription, tableAlias?: string) => {
   };
 };
 
+/**
+ * Creates the SQL context object used by `Database.sql()` template literals.
+ * Returns `{ sql, tables, utils }` where:
+ *   - `sql`    is the tagged template handler for building parameterized queries
+ *   - `tables` is a type-safe proxy that maps database schema entities to SQL fragments
+ *   - `utils`  provides helper functions: `raw`, `table`, `cte`, `type`, `and`, `array`
+ *
+ * The `strict` flag controls whether unknown property access on `tables` falls back to
+ * an untyped table reference (`false`) or is silently ignored (`true`).
+ */
 export const createSQLContext = <DB extends Database, STRICT extends boolean>(
   db: Database,
   strict = false,
@@ -698,6 +823,7 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
         const dbField = db[dbProp as keyof typeof db];
         let dbEntity: EntityDescription | undefined;
         switch (true) {
+          // Database function — return a callable that produces `schema.func_name(args)` SQL
           case dbField !== undefined && isFunc(dbField):
             return new Proxy((...args: unknown[]) => {
               return callable(
@@ -732,6 +858,7 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
                 },
               );
             }, {});
+          // Sub-schema — return a nested proxy that resolves schema.entity references
           case dbField !== undefined && Database.isSchema(dbField):
             return new Proxy(dbField, {
               get: <T, P extends keyof T>(schemaObject: T, schemaProp: P) => {
@@ -779,12 +906,14 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
                         },
                       );
                     }, {});
+                  // Table or view — wrap in tableProxyHandler for column/operation access
                   case schemaField !== undefined &&
                     (isTable(schemaField) || isView(schemaField)):
                     schemaEntity = schemaObject[
                       schemaProp
                     ] as EntityDescription;
                     break;
+                  // Loose mode — treat unknown properties as untyped table references
                   case typeof schemaProp === 'string' && !strict:
                     schemaEntity = {
                       schema: `${String(dbProp)}`,
@@ -806,9 +935,11 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
                 }
               },
             });
+          // Table or view — wrap in tableProxyHandler for column/operation access
           case dbField !== undefined && (isTable(dbField) || isView(dbField)):
             dbEntity = db[dbProp as keyof typeof db] as EntityDescription;
             break;
+          // Loose mode — treat unknown properties as untyped table references
           case typeof dbProp === 'string' && !strict:
             dbEntity = {
               name: `${String(dbProp)}`,
@@ -839,9 +970,11 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
     sql: sqlTaggedTemplate as unknown as SQLTemplate,
     tables: tablesProxy,
     utils: {
+      /** Injects a raw SQL string without parameterization. Use with caution — values are NOT escaped. */
       raw: (str: unknown) => {
         return { sql: `${str}`, values: [] };
       },
+      /** Creates a table proxy from an `EntityDescription`, enabling column access outside the schema. */
       table: ((table: EntityDescription) => {
         const tbl = descriptionToEntity(table);
         return new Proxy(
@@ -864,6 +997,7 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
           name: EntityDescription,
         ): SQLTable<RowType, true>;
       },
+      /** Defines a Common Table Expression (WITH clause). Returns a proxy with `.alias()`, `.use()`, and column accessors for referencing the CTE inside queries. */
       cte: ((strings: string[], ...params: unknown[]) => {
         const cteQuery = sqlTaggedTemplate(strings, ...params);
         // let isDefinition = true;
@@ -921,9 +1055,11 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
         });
         return cteProxy;
       }) as unknown as SQLCTE,
+      /** Returns a SQL type cast fragment (e.g., `int4`, `text[]`) for use in template interpolation. */
       type: (type: PGType | [PGType]) => {
         return { [SQLProp]: columnTypeToSQL(type) } as unknown;
       },
+      /** Joins multiple `SQLQuery` fragments with AND, renumbering parameter placeholders to avoid collisions. */
       and: (...queries: SQLQuery[]) => {
         const andSql: string[] = [];
         const andValues: unknown[] = [];
@@ -941,6 +1077,7 @@ export const createSQLContext = <DB extends Database, STRICT extends boolean>(
         });
         return { sql: andSql.join(' AND '), values: andValues };
       },
+      /** Converts a JavaScript array to a `jsonb` literal for use in SQL templates. */
       array: (o: unknown[]) => {
         return { sql: `'${JSON.stringify(o)}'::jsonb`, values: [] };
       },
