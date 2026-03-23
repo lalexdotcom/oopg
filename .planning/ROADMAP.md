@@ -58,9 +58,9 @@ Plans:
   2. `instanceof TransactionClient` returns true for the transaction object passed to the callback
   3. Stack traces inside transaction callbacks show `TransactionClient` method names, not anonymous Proxy traps
   4. Global type parsers are registered via an explicit `configure()` call, not at module load time — importing the library no longer has side effects
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 03-01-PLAN.md — configure() function (REFAC-04) and entity-routing integration test (D-09 safety net)
+- [x] 03-01-PLAN.md — configure() function (REFAC-04) and entity-routing integration test (D-09 safety net)
 - [ ] 03-02-PLAN.md — TransactionClient class (REFAC-01), connect() cleanup (REFAC-02), instanceof/stack trace tests
 
 ### Phase 4: Type Safety and Security
@@ -95,6 +95,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Test Infrastructure | 2/2 | Complete |  |
 | 2. Correctness Fixes | 2/2 | Complete    | 2026-03-23 |
-| 3. TransactionClient Refactor | 0/2 | In progress | - |
+| 3. TransactionClient Refactor | 1/2 | In Progress|  |
 | 4. Type Safety and Security | 0/TBD | Not started | - |
 | 5. Documentation and Packaging | 0/TBD | Not started | - |

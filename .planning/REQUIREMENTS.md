@@ -28,7 +28,7 @@
 - [ ] **REFAC-01**: Transaction Proxy chain (3–5 nested layers) replaced with an explicit `TransactionClient extends Database` class; external API (`callback(transaction: Database, { commit, rollback })`) is unchanged
 - [ ] **REFAC-02**: `connect()` method Proxy (`database.ts:647`) cleaned up using the same pattern as the TransactionClient replacement
 - [ ] **REFAC-03**: Assignment-in-while-condition (`while ((rows = await curs.read(size)).length)`) refactored to an explicit `while (true)` with a `break` condition
-- [ ] **REFAC-04**: Global `types.setTypeParser()` calls moved from module-level side effects into an exported `configure()` function; existing behavior preserved as opt-in default
+- [x] **REFAC-04**: Global `types.setTypeParser()` calls moved from module-level side effects into an exported `configure()` function; existing behavior preserved as opt-in default
 
 ### Type Safety
 
@@ -88,7 +88,7 @@
 | REFAC-01 | Phase 3 | Pending |
 | REFAC-02 | Phase 3 | Pending |
 | REFAC-03 | Phase 3 | Pending |
-| REFAC-04 | Phase 3 | Pending |
+| REFAC-04 | Phase 3 | Complete |
 | TYPE-01 | Phase 4 | Pending |
 | TYPE-02 | Phase 4 | Pending |
 | TYPE-03 | Phase 4 | Pending |

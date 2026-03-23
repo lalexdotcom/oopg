@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-23T14:47:16.986Z"
+status: Ready to execute
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-23T15:32:33.668Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Type-safe, ergonomic PostgreSQL access in TypeScript — the schema defines the types, the API enforces them.
-**Current focus:** Phase 02 — correctness-fixes
+**Current focus:** Phase 03 — transactionclient-refactor
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 03 (transactionclient-refactor) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: Not started
 | Phase 01-test-infrastructure P02 | 2 | 1 tasks | 1 files |
 | Phase 02-correctness-fixes P01 | 2 | 1 tasks | 1 files |
 | Phase 02-correctness-fixes P02 | 12 | 2 tasks | 2 files |
+| Phase 03-transactionclient-refactor P01 | 8 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 02-01]: Use async implementation overload for chunk() - cleaner than IIFE wrapper, try/finally guarantees cursor close
 - [Phase 02-02]: commit() and rollback() return silently on second call rather than throw — idempotent by design per BUG-03
 - [Phase 02-02]: Memoize block removed entirely from database.ts — undocumented feature with async anti-pattern, no API surface loss
+- [Phase 03-01]: Keep types import in query.ts after removing setTypeParser calls — types is still used in query config spread objects
+- [Phase 03-01]: Second schema-entity-routing test documents known Proxy gap (local schema variables not intercepted) — TransactionClient refactor (Plan 02) must fix
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T14:43:28.850Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-23T15:32:33.666Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
