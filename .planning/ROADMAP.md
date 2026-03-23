@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Test Infrastructure** - Real PostgreSQL test harness with schema isolation and integration coverage
 - [x] **Phase 2: Correctness Fixes** - All latent bugs fixed before they become documented API behavior (completed 2026-03-23)
-- [ ] **Phase 3: TransactionClient Refactor** - Proxy chain replaced with explicit typed class; external API unchanged
+- [x] **Phase 3: TransactionClient Refactor** - Proxy chain replaced with explicit typed class; external API unchanged (completed 2026-03-23)
 - [ ] **Phase 4: Type Safety and Security** - All `any` casts replaced; SQL injection risk closed; incomplete features implemented
 - [ ] **Phase 5: Documentation and Packaging** - JSDoc, README, CHANGELOG, and package.json ready for public npm release
 
@@ -58,10 +58,10 @@ Plans:
   2. `instanceof TransactionClient` returns true for the transaction object passed to the callback
   3. Stack traces inside transaction callbacks show `TransactionClient` method names, not anonymous Proxy traps
   4. Global type parsers are registered via an explicit `configure()` call, not at module load time — importing the library no longer has side effects
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 03-01-PLAN.md — configure() function (REFAC-04) and entity-routing integration test (D-09 safety net)
-- [ ] 03-02-PLAN.md — TransactionClient class (REFAC-01), connect() cleanup (REFAC-02), instanceof/stack trace tests
+- [x] 03-02-PLAN.md — TransactionClient class (REFAC-01), connect() cleanup (REFAC-02), instanceof/stack trace tests
 
 ### Phase 4: Type Safety and Security
 **Goal**: All unsafe type casts are replaced with typed alternatives, SQL injection surface is closed, and incomplete runtime features are implemented
@@ -98,6 +98,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Test Infrastructure | 2/2 | Complete |  |
 | 2. Correctness Fixes | 2/2 | Complete    | 2026-03-23 |
-| 3. TransactionClient Refactor | 1/2 | In Progress|  |
+| 3. TransactionClient Refactor | 2/2 | Complete | 2026-03-23 |
 | 4. Type Safety and Security | 0/2 | Not started | - |
 | 5. Documentation and Packaging | 0/TBD | Not started | - |
