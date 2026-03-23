@@ -17,6 +17,7 @@ import {
 // builtinsTypes is defined in pg-types (transitive dep). Derive the string union
 // from the runtime builtins object so we don't need pg-types as a direct dep.
 type BuiltinsTypes = keyof typeof pgTypes.builtins;
+
 import type Cursor from 'pg-cursor';
 import { DEFAULT_POSTGRES_SCHEMA } from './const';
 import {
@@ -94,7 +95,9 @@ export type SchemaBuilder<DB extends Database, S extends Schema> = (utils: {
   func: DB['func'];
 }) => S;
 
-const OOPG_TYPE_DEFAULTS: Partial<Record<BuiltinsTypes, (val: string) => unknown>> = {
+const OOPG_TYPE_DEFAULTS: Partial<
+  Record<BuiltinsTypes, (val: string) => unknown>
+> = {
   INT8: (val) => Number.parseInt(val, 10),
   INT4: (val) => Number.parseInt(val, 10),
   NUMERIC: (val) => Number.parseFloat(val),
@@ -106,8 +109,9 @@ function buildTypeParser(
   const merged = { ...OOPG_TYPE_DEFAULTS, ...overrides };
   return {
     getTypeParser: (id, format) => {
-      const name = (Object.entries(pgTypes.builtins) as [BuiltinsTypes, number][])
-        .find(([, oid]) => oid === id)?.[0];
+      const name = (
+        Object.entries(pgTypes.builtins) as [BuiltinsTypes, number][]
+      ).find(([, oid]) => oid === id)?.[0];
       if (name && name in merged) {
         return merged[name]!;
       }
@@ -143,7 +147,10 @@ export class Database implements EventEmitter {
 
   constructor(
     config: string | ClientConfig,
-    poolConfig?: Omit<PoolConfig & ClientConfig, 'types'> & { debug?: boolean; types?: Partial<Record<BuiltinsTypes, (val: string) => unknown>> },
+    poolConfig?: Omit<PoolConfig & ClientConfig, 'types'> & {
+      debug?: boolean;
+      types?: Partial<Record<BuiltinsTypes, (val: string) => unknown>>;
+    },
   ) {
     const { types: typeOverrides, ...restPoolConfig } = poolConfig ?? {};
     this.#typeOverrides = typeOverrides;
@@ -153,7 +160,10 @@ export class Database implements EventEmitter {
       ...(typeof config === 'string' ? parseConnectionString(config) : config),
       // idleTimeoutMillis: 0,
     });
-    this.pool = new Pool({ ...this.#config, types: buildTypeParser(this.#typeOverrides) });
+    this.pool = new Pool({
+      ...this.#config,
+      types: buildTypeParser(this.#typeOverrides),
+    });
     this.pool.on('acquire', (client) => {
       const clientId = ++ClientID;
       this.#acquired.set(client, clientId);
@@ -260,12 +270,17 @@ export class Database implements EventEmitter {
     return structuredClone(this.#config);
   }
 
-  get _typeOverrides(): Partial<Record<BuiltinsTypes, (val: string) => unknown>> | undefined {
+  get _typeOverrides():
+    | Partial<Record<BuiltinsTypes, (val: string) => unknown>>
+    | undefined {
     return this.#typeOverrides;
   }
 
   protected get _defaultSchema(): string {
-    return (this.constructor as typeof Database).DEFAULT_SCHEMA ?? DEFAULT_POSTGRES_SCHEMA;
+    return (
+      (this.constructor as typeof Database).DEFAULT_SCHEMA ??
+      DEFAULT_POSTGRES_SCHEMA
+    );
   }
 
   get status() {
@@ -306,7 +321,10 @@ export class Database implements EventEmitter {
 
     try {
       await execute(client, 'BEGIN', opOptions);
-      const returned = await callback(txClient as unknown as this, { commit, rollback });
+      const returned = await callback(txClient as unknown as this, {
+        commit,
+        rollback,
+      });
       if (!txClient.isDone) {
         if (autoCommit) {
           await commit();
@@ -692,8 +710,7 @@ export class Database implements EventEmitter {
     const desc =
       typeof name === 'string'
         ? {
-            schema:
-              this._defaultSchema,
+            schema: this._defaultSchema,
             name,
           }
         : name;
@@ -715,8 +732,7 @@ export class Database implements EventEmitter {
     const desc =
       typeof name === 'string'
         ? {
-            schema:
-              this._defaultSchema,
+            schema: this._defaultSchema,
             name,
           }
         : name;
@@ -834,8 +850,7 @@ export class Database implements EventEmitter {
     const desc =
       typeof name === 'string'
         ? {
-            schema:
-              this._defaultSchema,
+            schema: this._defaultSchema,
             name,
           }
         : name;
@@ -883,11 +898,18 @@ export class TransactionClient extends Database {
     const client = this.#client;
     const parentPool = this.#parentPool;
     return {
-      connect: () => (this.#txDone ? parentPool.connect() : Promise.resolve(client)),
+      connect: () =>
+        this.#txDone ? parentPool.connect() : Promise.resolve(client),
       // Delegate status properties to the parent pool (Pitfall 3)
-      get idleCount() { return parentPool.idleCount; },
-      get waitingCount() { return parentPool.waitingCount; },
-      get totalCount() { return parentPool.totalCount; },
+      get idleCount() {
+        return parentPool.idleCount;
+      },
+      get waitingCount() {
+        return parentPool.waitingCount;
+      },
+      get totalCount() {
+        return parentPool.totalCount;
+      },
       end: () => Promise.resolve(),
       on: parentPool.on.bind(parentPool),
     } as unknown as Pool;
