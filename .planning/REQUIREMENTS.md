@@ -40,7 +40,7 @@
 ### Documentation
 
 - [x] **DOC-01**: All exported functions, classes, and types have JSDoc with `@param`, `@returns`, and at least one usage example; block-level comments in each source file describe the purpose of each logical section
-- [ ] **DOC-02**: README covers: installation, quick start, schema definition, query modes, transactions, bulk operations, streaming, LISTEN/NOTIFY, `configure()`, and the `API<DB>` base class — with code examples for each
+- [x] **DOC-02**: README covers: installation, quick start, schema definition, query modes, transactions, bulk operations, streaming, LISTEN/NOTIFY, `configure()`, and the `API<DB>` base class — with code examples for each
 - [x] **DOC-03**: `CHANGELOG.md` initialized with a v1.0.0 entry summarizing all changes
 
 ### Packaging
@@ -94,7 +94,7 @@
 | TYPE-03 | Phase 4 | Pending |
 | TYPE-04 | Phase 4 | Pending |
 | DOC-01 | Phase 5 | Complete |
-| DOC-02 | Phase 5 | Pending |
+| DOC-02 | Phase 5 | Complete |
 | DOC-03 | Phase 5 | Complete |
 | PKG-01 | Phase 5 | Complete |
 | PKG-02 | Phase 5 | Complete |

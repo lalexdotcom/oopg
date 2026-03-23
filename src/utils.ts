@@ -273,12 +273,44 @@ export function parseConnectionString(uri: string): ClientConfig {
   return config;
 }
 
+/**
+ * Converts an `EntityDescription` (string name or `{ name, schema }` object) to a plain entity object.
+ *
+ * @param table - A table name string or an object with `name` and optional `schema`.
+ * @returns An object with `name` and optional `schema` properties.
+ *
+ * @example
+ * import { utils } from '@lalex/oopg';
+ *
+ * utils.descriptionToEntity('users');
+ * // → { name: 'users' }
+ *
+ * utils.descriptionToEntity({ name: 'users', schema: 'public' });
+ * // → { name: 'users', schema: 'public' }
+ */
 export const descriptionToEntity = (table: EntityDescription) => {
   return typeof table === 'object'
     ? { name: table.name, schema: table.schema }
     : { name: table };
 };
 
+/**
+ * Converts a `PGType` column type definition to its SQL string representation.
+ *
+ * Supports plain type strings (`'varchar'`), precision types (`{ type: 'numeric', precision: 10, scale: 2 }`),
+ * and array types (`['text']`). Throws a descriptive error if `scale` is used with a non-numeric type.
+ *
+ * @param type - A PostgreSQL type string, a precision/scale object, or a single-element tuple for arrays.
+ * @returns The SQL type string, e.g. `'varchar'`, `'numeric(10,2)'`, `'text[]'`.
+ * @throws {Error} If `scale` is specified for a type other than `numeric` or `decimal`.
+ *
+ * @example
+ * import { utils } from '@lalex/oopg';
+ *
+ * utils.columnTypeToSQL('varchar');      // 'varchar'
+ * utils.columnTypeToSQL(['text']);       // 'text[]'
+ * utils.columnTypeToSQL({ type: 'numeric', precision: 10, scale: 2 }); // 'numeric(10,2)'
+ */
 export const columnTypeToSQL = (type: PGType | [PGType]): string => {
   if (Array.isArray(type)) {
     if (type.length === 1) return `${columnTypeToSQL(type[0])}[]`;
@@ -309,5 +341,20 @@ export const columnTypeToSQL = (type: PGType | [PGType]): string => {
   return typeSQL;
 };
 
+/**
+ * Escapes a string literal for safe inclusion in a PostgreSQL SQL query.
+ * Wraps the value in single quotes and escapes any single quotes within it.
+ *
+ * This is a re-export of `pg.escapeLiteral`. Use when building dynamic SQL
+ * outside of template literals where parameterised queries are not available.
+ *
+ * @param str - The string value to escape.
+ * @returns The escaped SQL literal string, including surrounding single quotes.
+ *
+ * @example
+ * import { utils } from '@lalex/oopg';
+ *
+ * utils.escape("O'Brien"); // "'O''Brien'"
+ */
 // biome-ignore lint/suspicious/noShadowRestrictedNames: <explanation>
 export const escape = escapeLiteral;

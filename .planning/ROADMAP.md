@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Correctness Fixes** - All latent bugs fixed before they become documented API behavior (completed 2026-03-23)
 - [x] **Phase 3: TransactionClient Refactor** - Proxy chain replaced with explicit typed class; external API unchanged (completed 2026-03-23)
 - [ ] **Phase 4: Type Safety and Security** - All `any` casts replaced; SQL injection risk closed; incomplete features implemented
-- [ ] **Phase 5: Documentation and Packaging** - JSDoc, README, CHANGELOG, and package.json ready for public npm release
+- [x] **Phase 5: Documentation and Packaging** - JSDoc, README, CHANGELOG, and package.json ready for public npm release (completed 2026-03-23)
 
 ## Phase Details
 
@@ -87,11 +87,11 @@ Plans:
   3. `CHANGELOG.md` exists with a v1.0.0 entry summarizing all changes made across phases 1–4
   4. `package.json` `exports` field correctly resolves for ESM consumers; `sideEffects: false` is present; `engines.node` is set to `>=18`
   5. `columnTypeToSQL()` throws a descriptive error for invalid type combinations (e.g., `varchar + scale`) instead of generating invalid SQL
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 05-01-PLAN.md — package.json cleanup, CHANGELOG creation, columnTypeToSQL validation (PKG-01, PKG-02, PKG-03, DOC-03)
 - [x] 05-02-PLAN.md — JSDoc coverage on all exported symbols (DOC-01)
-- [ ] 05-03-PLAN.md — Complete README rewrite with all 10 sections (DOC-02)
+- [x] 05-03-PLAN.md — Complete README rewrite with all 10 sections (DOC-02)
 
 ## Progress
 
@@ -104,4 +104,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Correctness Fixes | 2/2 | Complete    | 2026-03-23 |
 | 3. TransactionClient Refactor | 2/2 | Complete | 2026-03-23 |
 | 4. Type Safety and Security | 0/2 | Not started | - |
-| 5. Documentation and Packaging | 2/3 | In Progress|  |
+| 5. Documentation and Packaging | 3/3 | Complete   | 2026-03-23 |

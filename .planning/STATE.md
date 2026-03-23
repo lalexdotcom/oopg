@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-23T18:37:17.863Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-23T18:41:36.248Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -53,6 +53,7 @@ Plan: 3 of 3
 | Phase 03-transactionclient-refactor P01 | 8 | 2 tasks | 4 files |
 | Phase 05 P01 | 15 | 2 tasks | 4 files |
 | Phase 05-documentation-and-packaging P02 | 9 | 2 tasks | 6 files |
+| Phase 05-documentation-and-packaging P03 | 5 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 05]: columnTypeToSQL scale guard uses 'in' operator to handle both typed and untyped callers
 - [Phase 05-02]: JSDoc examples use actual public API signatures (no configure(), no internal paths) per D-09 and D-12
 - [Phase 05-02]: Internal helpers (columnDefinitionToSQL, formatEntity, valueToSQL, clientQuery, parseConnectionString, buildTypeParser) received no JSDoc per D-08
+- [Phase 05-03]: README rewritten from scratch — rslib boilerplate replaced with 10-section public documentation covering full API
+- [Phase 05-03]: db.chunks() (plural) used in README Query Modes section to match Database.chunks() public method name
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T18:37:17.861Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-23T18:41:36.246Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
