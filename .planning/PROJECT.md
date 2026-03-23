@@ -28,16 +28,16 @@ Type-safe, ergonomic PostgreSQL access in TypeScript — the schema defines the 
 
 - [ ] Fix bad async patterns (`new Promise(async ...)` anti-pattern in `query.ts`, `database.ts`)
 - [ ] Remove all `any` type casts — replace with proper generics or narrowing
-- [ ] Refactor transaction Proxy chain → explicit `TransactionClient` class (same external API)
-- [ ] Fix global type parser side effects (INT8, INT4, NUMERIC parsers set globally)
+- [x] Refactor transaction Proxy chain → explicit `TransactionClient` class (same external API) — Validated in Phase 3
+- [x] Fix global type parser side effects (INT8, INT4, NUMERIC parsers set globally) — Validated in Phase 3 (`configure()`)
 - [ ] Fix identifier injection risk in `sql.ts` and `utils.ts`
-- [ ] Fix error recovery in streaming/cursor ops (cursor leak if callback throws)
-- [ ] Fix `while((rows = await curs.read(size)).length)` assignment-in-condition pattern
-- [ ] Fix race condition on transaction `done` flag
-- [ ] Fix typo: `'delate'` → `'delete'` in debug array (`query.ts:40`)
+- [x] Fix error recovery in streaming/cursor ops (cursor leak if callback throws) — Validated in Phase 2
+- ~~Fix `while((rows = await curs.read(size)).length)` assignment-in-condition pattern~~ — Cancelled (D-11: pattern retained)
+- [x] Fix race condition on transaction `done` flag (`#done` private class field) — Validated in Phase 2
+- [x] Fix typo: `'delate'` → `'delete'` in debug array (`query.ts:40`) — Validated in Phase 2
 - [ ] Complete CTE implementation (alias, materialize methods currently disabled)
 - [ ] Complete partial index implementation (`types.ts` TODOs)
-- [ ] Make `commit`/`rollback` idempotent (currently throws on double-call)
+- [x] Make `commit`/`rollback` idempotent (currently throws on double-call) — Validated in Phase 2
 - [ ] Add runtime validation for invalid column type combinations
 - [ ] Add block-level comments and JSDoc for all public functions
 - [ ] Write README for public npm release
@@ -55,7 +55,7 @@ Type-safe, ergonomic PostgreSQL access in TypeScript — the schema defines the 
 Brownfield TypeScript library. Codebase cartographied 2026-03-23 — see `.planning/codebase/` for full analysis.
 
 Key technical findings from codebase map:
-- Transaction handling uses 3–5 nested Proxy layers (fragile, hard to extend, type lies)
+- ~~Transaction handling uses 3–5 nested Proxy layers~~ — Replaced with `TransactionClient extends Database` in Phase 3
 - SQL template type system is complex but functional — complex conditionals in `sql.ts:43-65`
 - Global type parsers registered at module load affect all `pg` queries process-wide
 - Test suite is essentially empty (1 test on a `squared()` utility)
@@ -97,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after initialization*
+*Last updated: 2026-03-23 after Phase 3 completion*
