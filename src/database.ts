@@ -102,7 +102,6 @@ export class Database implements EventEmitter {
   #config: Readonly<PoolConfig>;
   pool: Pool;
   #acquired = new Map<ClientBase, number>();
-  #done = false;
 
   eventEmitter = new EventEmitter();
   listenerClient?: Promise<PoolClient>;
@@ -246,74 +245,28 @@ export class Database implements EventEmitter {
   ) {
     const { autoCommit, ...opOptions } = options ?? {};
     const client = await this.pool.connect();
-    this.#done = false;
+
+    // Suppress release() during the transaction — actual release happens in finally
+    const originalRelease = client.release.bind(client);
+    client.release = () => {};
+
+    const txClient = new TransactionClient(client, this);
 
     const commit = async () => {
-      if (this.#done) return;
+      if (txClient.isDone) return; // idempotent per BUG-03
       await execute(client, 'COMMIT', opOptions);
-      this.#done = true;
+      txClient.markDone();
     };
     const rollback = async () => {
-      if (this.#done) return;
+      if (txClient.isDone) return; // idempotent per BUG-03
       await execute(client, 'ROLLBACK', opOptions);
-      this.#done = true;
+      txClient.markDone();
     };
 
-    const unreleasableClient = new Proxy(client, {
-      get: (c, p) => {
-        if (p === 'release') return () => {};
-        return c[p as keyof typeof c];
-      },
-    });
-    const pool = this.pool;
-    const databaseProxy = new Proxy(this, {
-      get: (db, prop) => {
-        const original = db[prop as keyof typeof db];
-        switch (true) {
-          case prop === 'pool':
-            return {
-              connect: () =>
-                this.#done
-                  ? pool.connect()
-                  : Promise.resolve(unreleasableClient),
-            };
-          case prop === 'transaction':
-            throw new Error('Cannot initiate nested transaction');
-          // If table or view, its database is this proxy
-          case original instanceof DatabaseEntityHelper:
-            return new Proxy(original, {
-              get: (ent, p) => {
-                if (p === 'database') {
-                  return databaseProxy;
-                }
-                return ent[p as keyof typeof ent];
-              },
-            });
-          case Database.isSchema(original):
-            return new Proxy(original, {
-              get(ent, p) {
-                const schemaOriginal = ent[p as keyof typeof ent];
-                if (schemaOriginal instanceof DatabaseEntityHelper) {
-                  return new Proxy(schemaOriginal, {
-                    get(schemaEnt, schemaProp) {
-                      if (schemaProp === 'database') {
-                        return databaseProxy;
-                      }
-                      return schemaEnt[schemaProp as keyof typeof schemaEnt];
-                    },
-                  });
-                }
-                return schemaOriginal;
-              },
-            });
-        }
-        return db[prop as keyof typeof db];
-      },
-    });
     try {
       await execute(client, 'BEGIN', opOptions);
-      const returned = await callback(databaseProxy, { commit, rollback });
-      if (!this.#done) {
+      const returned = await callback(txClient as unknown as this, { commit, rollback });
+      if (!txClient.isDone) {
         if (autoCommit) {
           await commit();
         } else {
@@ -322,9 +275,10 @@ export class Database implements EventEmitter {
       }
       return returned;
     } catch (e) {
-      if (!this.#done) await rollback();
+      if (!txClient.isDone) await rollback();
       throw e;
     } finally {
+      client.release = originalRelease;
       client.release();
     }
   }
@@ -633,24 +587,28 @@ export class Database implements EventEmitter {
     autoRelease = true,
   ) {
     const client = await this.pool.connect();
-    const unreleasableClient = new Proxy(client, {
-      get: (c, p) => {
-        if (p === 'release') return () => {};
-        return c[p as keyof typeof c];
-      },
-    });
+    // Suppress release() so the callback cannot release the client accidentally
+    const originalRelease = client.release.bind(client);
+    client.release = () => {};
+
     let released = false;
     const release = () => {
       if (!released) {
         released = true;
+        client.release = originalRelease;
         client.release();
       }
     };
-    const result = await callback(unreleasableClient, release);
-    if (autoRelease && !released) {
-      release();
+    try {
+      const result = await callback(client as ClientBase, release);
+      if (autoRelease && !released) {
+        release();
+      }
+      return result;
+    } catch (e) {
+      if (!released) release();
+      throw e;
     }
-    return result;
   }
 
   schema<B extends SchemaBuilder<this, Schema>>(schemaName: string, sch: B) {
@@ -861,6 +819,61 @@ export class Database implements EventEmitter {
     return (await this.connect((client) => getAllViews(client))).map((t) =>
       this.view(t),
     );
+  }
+}
+
+// TransactionClient wraps an already-acquired PoolClient and routes all query
+// operations through that client instead of the parent pool. It is intentionally
+// NOT exported from index.ts (internal implementation detail per D-04).
+// Export is needed only so tests can assert `instanceof TransactionClient`.
+export class TransactionClient extends Database {
+  #txDone = false;
+  #client: PoolClient;
+  #parentPool: Pool;
+
+  constructor(client: PoolClient, parentDb: Database) {
+    // super() creates a Pool that will never connect (pg.Pool is lazy).
+    // We end it immediately to avoid any resource leak.
+    super(parentDb.config);
+    this.#client = client;
+    this.#parentPool = parentDb.pool;
+    // End the unused pool created by super() — it is immediately replaced below.
+    // pg.Pool.end() is safe to call on a pool with zero connections.
+    this.pool.end().catch(() => {}); // ignore errors on empty pool end
+    // Replace the unused pool with a minimal pool-shaped object whose connect()
+    // returns the already-acquired client (with release() already no-op'd by
+    // the caller in Database.transaction()).
+    this.pool = this.#makeTransactionPool();
+  }
+
+  #makeTransactionPool(): Pool {
+    const client = this.#client;
+    const parentPool = this.#parentPool;
+    return {
+      connect: () => (this.#txDone ? parentPool.connect() : Promise.resolve(client)),
+      // Delegate status properties to the parent pool (Pitfall 3)
+      get idleCount() { return parentPool.idleCount; },
+      get waitingCount() { return parentPool.waitingCount; },
+      get totalCount() { return parentPool.totalCount; },
+      end: () => Promise.resolve(),
+      on: parentPool.on.bind(parentPool),
+    } as unknown as Pool;
+  }
+
+  // Override transaction() to prevent nested transactions (D-06)
+  override async transaction(): Promise<never> {
+    throw new Error('Cannot initiate nested transaction');
+  }
+
+  // Called by commit()/rollback() in Database.transaction() to mark the
+  // transaction as complete — after this, pool.connect() falls back to the
+  // parent pool so any post-transaction operations work correctly.
+  markDone(): void {
+    this.#txDone = true;
+  }
+
+  get isDone(): boolean {
+    return this.#txDone;
   }
 }
 
