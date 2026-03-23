@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-23T12:06:04.742Z"
+status: Ready to execute
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-23T14:37:30.151Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Type-safe, ergonomic PostgreSQL access in TypeScript — the schema defines the types, the API enforces them.
-**Current focus:** Phase 01 — test-infrastructure
+**Current focus:** Phase 02 — correctness-fixes
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
+Phase: 02 (correctness-fixes) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: Not started
 *Updated after each plan completion*
 | Phase 01-test-infrastructure P01 | 3 | 2 tasks | 5 files |
 | Phase 01-test-infrastructure P02 | 2 | 1 tasks | 1 files |
+| Phase 02-correctness-fixes P01 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,7 @@ Recent decisions affecting current work:
 - [Phase 01-01]: Use db.pool.query() in withSchema for infrastructure operations (not db.query()) — pool.query acquires its own client, simpler for setup/teardown
 - [Phase 01-01]: Schema names use oopg_test_<uuid> prefix with hyphens replaced by underscores for valid PostgreSQL identifiers (pg_temp_ is reserved by PostgreSQL for internal temporary schemas)
 - [Phase 01-02]: chunk() size specified as options.size not as positional arg — plan snippet showed chunk(client, sql, 2, callback) but actual signature is chunk(client, sql, callback, { size: 2 })
+- [Phase 02-01]: Use async implementation overload for chunk() - cleaner than IIFE wrapper, try/finally guarantees cursor close
 
 ### Pending Todos
 
@@ -81,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T13:50:21.424Z
-Stopped at: Completed quick task 260323-j7y — fix pg_temp_ schema prefix, all tests passing
+Last session: 2026-03-23T14:37:30.149Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None

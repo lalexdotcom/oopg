@@ -44,9 +44,9 @@ Plans:
   2. A `chunk()` or `step()` callback that throws does not leak the cursor — the cursor is always closed in a `finally` block
   3. No `new Promise(async (res, rej) => ...)` pattern exists anywhere in the codebase — all async entry points use `async function + try/finally`
   4. The debug command array in `query.ts` contains `'delete'` not `'delate'`
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 02-01-PLAN.md — Fix query.ts: typo, async anti-pattern in chunk(), cursor leak
+- [x] 02-01-PLAN.md — Fix query.ts: typo, async anti-pattern in chunk(), cursor leak
 - [ ] 02-02-PLAN.md — Fix database.ts: idempotent commit/rollback, #done field, memoize removal, regression tests
 
 ### Phase 3: TransactionClient Refactor
@@ -91,7 +91,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Test Infrastructure | 2/2 | Complete |  |
-| 2. Correctness Fixes | 0/2 | Planned | - |
+| 2. Correctness Fixes | 1/2 | In Progress|  |
 | 3. TransactionClient Refactor | 0/TBD | Not started | - |
 | 4. Type Safety and Security | 0/TBD | Not started | - |
 | 5. Documentation and Packaging | 0/TBD | Not started | - |
