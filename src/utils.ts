@@ -273,47 +273,12 @@ export function parseConnectionString(uri: string): ClientConfig {
   return config;
 }
 
-/**
- * Normalizes an `EntityDescription` (string or object) into a `{ name, schema? }` object.
- *
- * @param table - a plain table name string or an object with `name` and optional `schema`
- * @returns a normalized `{ name, schema? }` entity descriptor
- *
- * @example
- * ```ts
- * import { utils } from 'oopg';
- *
- * utils.descriptionToEntity('users');
- * // => { name: 'users' }
- *
- * utils.descriptionToEntity({ name: 'users', schema: 'app' });
- * // => { name: 'users', schema: 'app' }
- * ```
- */
 export const descriptionToEntity = (table: EntityDescription) => {
   return typeof table === 'object'
     ? { name: table.name, schema: table.schema }
     : { name: table };
 };
 
-/**
- * Converts a `PGType` column type descriptor to its SQL string representation.
- *
- * @param type - a plain type string (e.g. `'text'`), a precision/scale object, or a
- *   single-element array for PostgreSQL array columns
- * @returns the SQL type string (e.g. `'varchar(100)'`, `'decimal(10,2)'`, `'text[]'`)
- * @throws `Error` when the array has more than one element
- *
- * @example
- * ```ts
- * import { utils, varchar, decimal } from 'oopg';
- *
- * utils.columnTypeToSQL('text');           // 'text'
- * utils.columnTypeToSQL(varchar(100));     // 'varchar(100)'
- * utils.columnTypeToSQL(decimal(10, 2));   // 'decimal(10,2)'
- * utils.columnTypeToSQL(['text']);         // 'text[]'
- * ```
- */
 export const columnTypeToSQL = (type: PGType | [PGType]): string => {
   if (Array.isArray(type)) {
     if (type.length === 1) return `${columnTypeToSQL(type[0])}[]`;
@@ -321,6 +286,9 @@ export const columnTypeToSQL = (type: PGType | [PGType]): string => {
   }
   if (typeof type === 'string') return `${type}`;
   const typeStr = type.type;
+  if ('scale' in type && type.scale !== undefined && !['numeric', 'decimal'].includes(typeStr)) {
+    throw new Error('columnTypeToSQL: scale is only valid for numeric and decimal types');
+  }
   const typeParams: number[] = [];
   if (
     typeof type.precision === 'number' &&
@@ -341,22 +309,5 @@ export const columnTypeToSQL = (type: PGType | [PGType]): string => {
   return typeSQL;
 };
 
-/**
- * Escapes a string literal for safe use in PostgreSQL queries.
- * Wraps `pg`'s `escapeLiteral` — always prefer parameterized queries (`$1`) when possible.
- *
- * @param str - the string to escape
- * @returns the escaped string surrounded by single quotes, safe for direct SQL interpolation
- *
- * @example
- * ```ts
- * import { utils } from 'oopg';
- *
- * const safe = utils.escape("O'Reilly");
- * // => "'O''Reilly'"
- *
- * await db.execute(`UPDATE users SET name = ${safe} WHERE id = $1`, [userId]);
- * ```
- */
 // biome-ignore lint/suspicious/noShadowRestrictedNames: <explanation>
 export const escape = escapeLiteral;
