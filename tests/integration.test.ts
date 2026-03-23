@@ -102,10 +102,31 @@ describe('transactions', () => {
 
       await expect(
         db.transaction(async (tx) => {
-          // biome-ignore lint/suspicious/noExplicitAny: accessing transaction proxy to test nested throw
-          await (tx as any).transaction(async () => {});
+          await tx.transaction(async () => {});
         }),
       ).rejects.toThrow('Cannot initiate nested transaction');
+    });
+  });
+
+  test('transaction callback receives TransactionClient instance', async () => {
+    const { TransactionClient } = await import('../src/database');
+
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+
+      await db.transaction(async (tx) => {
+        expect(tx).toBeInstanceOf(TransactionClient);
+      });
+    });
+  });
+
+  test('transaction callback shows TransactionClient in stack', async () => {
+    await withSchema(db, async (schema) => {
+      await createTestTable(db, schema);
+
+      await db.transaction(async (tx) => {
+        expect(tx.constructor.name).toBe('TransactionClient');
+      });
     });
   });
 
