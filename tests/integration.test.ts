@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from '@rstest/core';
 import { Readable } from 'node:stream';
+import { configure } from '../src/configure';
 import { Database } from '../src/database';
 import { chunk, first, select, step, stream } from '../src/query';
 import { bulkWrite, insertIntoTable } from '../src/tables';
@@ -11,6 +12,7 @@ beforeAll(() => {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL is not set');
   db = new Database(url);
+  configure();
 });
 
 afterAll(async () => {

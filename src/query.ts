@@ -6,11 +6,6 @@ import type { OperationOptions, Row } from './types';
 import { clientQuery, getValuesAndOptions, type QueryOptions } from './utils';
 
 const LL = L.scope('oopg/query');
-
-types.setTypeParser(types.builtins.INT8, (val) => Number.parseInt(val, 10));
-types.setTypeParser(types.builtins.INT4, (val) => Number.parseInt(val, 10));
-types.setTypeParser(types.builtins.NUMERIC, (val) => Number.parseFloat(val));
-// types.setTypeParser(types.builtins.DATE, val => p)
 export type SelectOptions = QueryOptions & { stream?: boolean };
 
 export function select<R extends Row = Row>(
